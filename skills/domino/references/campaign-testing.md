@@ -2,7 +2,7 @@
 
 Simulate the campaign the way its participants will live it: several members, several days, through the real ledger in the test environment. Then fix what breaks and run the scenario again. A unit test of one evaluator (`runQuest`) proves one decision; a test-member scenario proves the campaign: enrollment, prerequisites, availability, streaks, budgets, review and rewards working together over time.
 
-Work in the test environment with a `domino login` CLI session or a personal API key. The `domino test-members` commands always address test. Each step needs its own permission. An organization admin holds all of them; a project role holds only its own:
+Work in the test environment with a `domino login` CLI session, a personal API key, or an organization automation key. The `domino test-members` commands always address test. Each step needs its own permission. An organization admin holds all of them; a project role holds only its own:
 
 | Step | Permission | Role that holds it |
 | --- | --- | --- |
@@ -205,6 +205,30 @@ Reset removes the member's synthetic accounts and records with everything else, 
 | Accepting a referral code | Not possible | Two signed-in test participants, on real time |
 
 Report each gap you had to route around in your handoff, so the operator knows which paths were proven end to end and which only at the evaluator.
+
+## Check participant flows on staging
+
+`domino test-members` proves the ledger. To prove the app's own screens (sign-in state, profile pages, referral links, the quest UI), sign the staging site in as a test member and use it. Stage a build first ([hosted projects](hosted.md#source-and-release-workflow)).
+
+1. **Get a staging link.** `domino api POST /staging/link body.json` with `{ "path": "/" }` returns `{ url, expiresAt }`: a one-minute URL that opens staging once. Mint a new one per browser session. It needs `read` and the test environment.
+2. **Open it.** Navigate your browser to `url`. The staging host answers 303 to `path` and sets the `__Host-domino-staging` cookie, valid 12 hours. Without a browser, request `url` without following redirects and keep the cookie from `Set-Cookie`.
+3. **Act as a test member.** The page shows the test toolbar when the link names an operator. Use its member picker, or call the toolbar's endpoints on the staging origin with the staging cookie, `X-Domino-Toolbar: 1` on every request, and the staging origin as `Origin` on every POST:
+   - `GET /__domino/toolbar/state`: the operator, the project's test members, and who the page is signed in as.
+   - `POST /__domino/toolbar/members` with `{ "name" }` creates a test member.
+   - `POST /__domino/toolbar/session` with `{ "member": "<id>" }` signs the page in as that member and sets `relay_session`; `{ "member": null }` signs out. Reload the page afterwards. The session is an ordinary 8-hour member session.
+   - `POST /__domino/toolbar/members/<id>/advance` with `{ "days" }`, `GET …/<id>/quests`, `POST …/<id>/passes` with `{ "quest" }`, and `GET …/<id>/history?since=<ms>` match `domino test-members advance`, `pass` and `history`, which you can use instead.
+4. **Walk the flow** in the browser as the member, then read the outcome with `domino test-members history`.
+
+Who the link names decides whether step 3 works. Each toolbar request checks again that the operator still holds `publish` in test, and that the key behind the link is still active:
+
+| Credential that minted the link | Acts as | Toolbar |
+| --- | --- | --- |
+| `domino login` CLI session, Console | You | Works while you hold `publish` in test. |
+| Personal API key (`ak_`) | You | Only when the key itself holds `publish`; ends when the key is revoked or loses it. |
+| Organization automation key (`dak_`) | `automation:<id>` | Only when the key holds `publish` and reaches the project; ends when the key or the secret that minted the link is revoked or expires. |
+| Hosted app key, service key, Claude or ChatGPT | Nobody | Views staging; the toolbar answers 403 `operator-required`. |
+
+Toolbar actions are audited as the operator: your user, or `automation:<id>`. A revoked or expired key answers 401 `unauthenticated`; mint a new link with an active credential. A human reviewer without Console access signs in with the staging password instead (Console **Settings → Staging access**); a password session views staging but never gets the toolbar.
 
 ## Report
 

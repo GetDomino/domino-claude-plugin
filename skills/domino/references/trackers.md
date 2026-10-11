@@ -19,11 +19,26 @@ Every cycle searches the whole window again, from the tracker's discovery start 
 
 Search is limited by the provider's available history and results. Coverage **complete** means this cycle exhausted the provider's pagination and refreshed known posts successfully. It does not certify that every matching X post exists in the dataset. Page limits and unavailable known posts produce **partial** coverage.
 
-A tracker created without a deployment (`trackers.create`, `domino trackers create`, or Console **New X tracker**) takes the same fields and limits as `defineTracker`, with `query` in place of `source`. `refreshSeconds` and `maxPages` take the defaults above. The first collection searches from `window.start`, and the answer is the tracker's status, with `origin: "data"`. A title, `refreshSeconds` or `maxPages` change leaves discovery where it was.
+A tracker created without a deployment (`trackers.create`, `domino trackers create`, or Console **New tracker**) takes the same fields and limits as `defineTracker`, with `source` named by the management API instead of a builder. Custom sources stay in code.
+
+| `source` | Stored as | Settings |
+| --- | --- | --- |
+| `{ kind: "x-search", query }`, or `query` alone | `x.search({ query })` | The X search query |
+| `{ kind: "discord-messages", text? }` | `discord.messages({ text })` | `text: true` stores each message's text |
+| `{ kind: "discord-reactions" }` | `discord.reactions()` | None |
+| `{ kind: "telegram-messages" }` | `telegram.messages()` | None |
+| `{ kind: "telegram-reactions" }` | `telegram.reactions()` | None |
+| `{ kind: "youtube-shorts" }` | `youtube.shorts()` | None |
+| `{ kind: "tiktok-videos" }` | `tiktok.videos()` | None |
+| `{ kind: "wallet-balances", chain, token }` | `wallet.balances({ chain, token })` | The chain's CAIP-2 ID and the token, null for a native coin; neither changes later (`--chain`, `--token` on `domino trackers create`) |
+
+`create` takes exactly one of `query` and `source`. `refreshSeconds` and `maxPages` take the defaults above. An X tracker's first collection searches from `window.start`, and the answer is the tracker's status, with `origin: "data"`. A title, `refreshSeconds` or `maxPages` change leaves discovery where it was. An `update` with `source` replaces the source's settings: a different kind, or `query` on a tracker that is not an X search, fails with 422 `validation-failed`. Turning Discord message text off erases the text already stored, as publishing `discord.messages()` without `text: true` does. `managedTrackerSource(source)` from `@domino-sdk/relay/schema` reads a published source by these names.
+
+Environment bindings are not definitions, so a promotion never copies them: a Discord or Telegram tracker promoted to live records nothing until live has its own Discord server or Telegram chats connected.
 
 ## Code or data owns each key
 
-A key belongs either to code or to data, and only its owner changes the definition. Tracker status shows it as `origin`: `code` for a tracker a deployment publishes, `data` for one created in Console or with `trackers.create`.
+A key belongs either to code or to data, and only its owner changes the definition. Tracker status shows it as `origin`: `code` for a tracker a deployment publishes, `data` for one created in Console or with `trackers.create`, of any source in the table above.
 
 | You try to | When the key belongs to | Result |
 | --- | --- | --- |

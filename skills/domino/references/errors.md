@@ -117,15 +117,15 @@ The [participant API](participant-api.md#client-conventions) describes the parti
 | `not-signed-in`                 | The call needs a signed-in member.                                                              |
 | `session-expired`               | The Console or CLI session expired. Sign in again, or run `domino login`.                      |
 | `sign-in-expired`               | A CLI sign-in request expired or was already approved. Run `domino login` again.               |
-| `invalid-credential`            | The API key, service key, hosted app key or identity integration key is expired, revoked or not valid here. |
-| `credential-not-allowed`        | This action needs another kind of credential, such as a Console session or `domino login`.     |
-| `permission-required`           | The credential lacks the permission or administrator role the action needs.                    |
-| `console-approval-required`     | Approving, rejecting or rolling back a live deployment, and approving or rejecting a promotion, needs a Console session; a `domino login` session cannot write in live. |
-| `scope-mismatch`                | The credential belongs to another organization, project or environment.                        |
+| `invalid-credential`            | The API key, service key, automation key, hosted app key or identity integration key is expired, revoked or not valid here. |
+| `credential-not-allowed`        | This action needs another kind of credential, such as a Console session or `domino login`. An automation key administers nothing.     |
+| `permission-required`           | The credential lacks the permission or administrator role the action needs, such as an automation key creating a project without its create-projects permission.                    |
+| `console-approval-required`     | Approving, rejecting or rolling back a live deployment, and approving or rejecting a promotion, needs a Console session; a `domino login` session cannot write in live, and an automation key writes nothing in live. |
+| `scope-mismatch`                | The credential belongs to another organization, project or environment, or the automation key does not reach this project.                        |
 | `organization-required`         | Choose an organization first.                                                                   |
 | `organization-not-provisioned`  | The organization is not set up for Domino Console.                                              |
 | `test-environment-required`     | The action works only in the test environment, such as development, staging, test members and preparing a promotion. |
-| `operator-required`             | Acting as a test member on a staging app needs a Console sign-in. A password staging session names no operator. |
+| `operator-required`             | Acting as a test member on a staging app needs a staging link minted by Console, a CLI session, or a personal or automation key that holds `publish`. A password staging session, and a link an app's key or an MCP client minted, name no operator. See [check participant flows on staging](campaign-testing.md#check-participant-flows-on-staging). |
 | `live-environment-required`     | The action works only in live: deployment review, rejection, promotion and rollback, and deciding or rolling back an environment promotion. |
 | `promotion-required`            | 422: live refuses a definition change, such as a quest, its settings, a point ledger, a badge or archive state, and a code deployment (`domino deploy --environment live`, `management.deployments.preview`), from every credential. Make the change or deploy in test, then `domino promote`. See [test and live](https://console.domino.run/docs/concepts/environments). |
 | `promotion-empty`               | 409: live already matches test, so there is nothing to promote.                                 |
@@ -257,6 +257,8 @@ A dashboard read gives a failing panel its own `error` instead of failing: `grou
 | `test-member-reset-blocked`                                                          | Relay cannot safely reset the test member; `state` names the blocking record.                 |
 | `test-member-clock-limit`                                                            | The test member's clock cannot advance beyond 90 days.                                       |
 | `attempt-not-rejected`                                                               | 409: only a rejected attempt can be accepted anyway; this one is accepted, progressed, failed, needs review or is still being checked. Retry a failed attempt (`attempts.retry`) and review one that needs review (`attempts.review`). |
+| `attempt-superseded`                                                                 | 409: `attempts.acceptAnyway` accepts only the member's latest attempt on the quest; the error names the newer attempt, and `attempts.get` answers it as `supersededBy`. |
+| `quest-archived`                                                                     | 409: `attempts.acceptAnyway` refuses an attempt on an archived quest. Unarchive the quest first.                                     |
 | `import-status`                                                                      | The [member import](imports.md) is not in a state that allows this, such as applying one that is not `checked`. |
 | `import-empty`                                                                       | The member import has no rows to check, or no ready row to apply.                            |
 
@@ -266,7 +268,10 @@ A dashboard read gives a failing panel its own `error` instead of failing: `grou
 
 | Code                               | Meaning                                                                                         |
 | ---------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `completion-revoked`               | The completion was already revoked.                                                             |
+| `completion-revoked`               | The completion was already revoked; or, from `attempts.acceptAnyway`, the member's completion of this occurrence was revoked and the occurrence kept, so it can't be completed again. |
+| `already-completed`                | From `attempts.acceptAnyway`: the member already has this completion (a once-only quest, or the same completion key), so accepting the attempt would pay nothing. |
+| `completion-not-revoked`           | Restore refused: the completion isn't revoked.                                                  |
+| `occurrence-taken`                 | Restore refused: the revoke freed the occurrence and `completion` holds it now.                 |
 | `completion-grant-history-missing` | Relay cannot safely revoke an older completion until Domino restores its reward grant history. |
 | `entitlement-status`               | The reward entitlement changed state before a correction could apply.                           |
 | `operation-retired`                | The operation belongs to the retired pre-1.0 contract; read current state and create a new one. |

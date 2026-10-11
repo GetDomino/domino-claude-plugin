@@ -17,11 +17,17 @@ The CLI sends only the title, report text, reporter kind, CLI version, Node vers
 
 Success returns `sent: true` and the Linear issue's `id`, `identifier`, and `url`. Keep that link in the handoff and submit each distinct issue once. Delivery errors exit 1. An unavailable destination means a Domino operator still needs to configure feedback delivery; keep the report for later. A network or Linear error can leave delivery uncertain: the command exits 3 with `OUTCOME_UNCERTAIN`, and Linear may already have the report, so do not submit it again. Reports are not queued automatically. At most ten submissions per user and organization are allowed per hour.
 
+In an [unattended run](automation.md#unattended-mode) (`DOMINO_AGENT_MODE=unattended`), the command saves the report as one JSON line to `./domino-feedback.jsonl`, or to `DOMINO_FEEDBACK_FILE`, and sends nothing; it needs no sign-in. The result is `sent: false`, `saved: true`, and the `file` path; name that file in the handoff. Pass `--submit`, or set `DOMINO_FEEDBACK=submit`, to send it instead.
+
 ## Scope and installation
 
 Read `scopeSources` next to `scope` in `domino doctor --json`. Each value comes from a command flag, a named `RELAY_*` environment variable, the checkout's local connection file, the manifest, or a default. Precedence is flags > environment > checkout connection > manifest. `domino checkout` writes `.git/domino.json`; linked Git worktrees read the file in their shared Git common directory. This untracked file contains API, organization, project, and environment identifiers, not credentials. Do not rewrite starter manifest values merely because they differ from the effective scope.
 
 Use the `packageManager.installCommand` printed by checkout or doctor. It selects the declared version with a frozen lockfile. Wait for the install process to finish before diagnosing missing dependencies. Run checks from the project directory. Without a manifest, `doctor --remote` does not probe the remote and cannot explain why checkout failed.
+
+Starters ship `relay.json` with the placeholder organization `local`. Outside a checkout nothing overrides it, so commands that reach a project refuse with `SCOPE_PLACEHOLDER`, and `domino doctor` reports a `scope` error. Run `domino checkout PROJECT` to clone the hosted project, which records its real scope, or pass `--organization` and `--project`; `domino whoami` lists both. `whoami`, `login`, `create`, `checkout`, `init` and `feedback` ignore the placeholder.
+
+A CLI started on an older Node than its `engines` field allows exits with `NODE_VERSION_UNSUPPORTED` before running anything; `details.minimum` is the Node major version to install.
 
 For `CHECKOUT_GIT_FAILED`, retain the original Git message and the structured `details`: failed phase, exit code, error classification, repository status reported by the API, project, and remote. A `ready` API status combined with a Git "Repository not found" error does not establish whether provisioning, permissions, or transport caused the failure. Retry the same checkout once. If it fails again, send the diagnostics to the operator and keep the existing Console project. Do not create a replacement, reinstall skills in a parent directory, or repeatedly run unrelated diagnostics.
 

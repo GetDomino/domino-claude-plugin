@@ -7,6 +7,17 @@ description: Set up a Domino project, integrate Domino into an existing app, fin
 
 Deliver the requested participant experience and evidence that its main action works. Domino owns verification, completion, points, and reward execution. The app owns its presentation and integration with participant identity.
 
+## Unattended runs
+
+Check the run mode once, at the start: read `agentMode` from `domino doctor --json`, which prints it even when doctor exits 1, or read `DOMINO_AGENT_MODE` from the environment before the CLI is installed. In `interactive` mode, ignore this section. `unattended` means whoever launched you set `DOMINO_AGENT_MODE=unattended` and nobody is present to answer; never set it yourself. In unattended mode, these rules replace every instruction below to ask, wait, or end the turn:
+
+- **The brief is the confirmed brief.** Skip brand and campaign intake, questions, and confirmation, and never end a turn to wait for an answer.
+- **Fill gaps, don't ask.** Where the brief leaves a consequential gap, such as rewards, timing, eligibility, or brand, choose the most conservative reasonable option. Record each choice in CAMPAIGN.md under "Assumed in an unattended run" and carry on.
+- **No browser login.** Remote work uses `RELAY_MANAGEMENT_TOKEN`. On `AUTH_REQUIRED` or `UNATTENDED_LOGIN_UNAVAILABLE`, finish the local work and report the missing credential; don't run `domino login`.
+- **No live publication.** Stop at hosted staging; live needs human review in Console.
+- **Feedback stays local.** `domino feedback` saves each report to the `file` in its result instead of submitting it. Report as described below and name that file in the handoff.
+- **The handoff is a report.** End with what you built, the staging URL, the checks and participant actions you ran, and every assumption. Ask no questions.
+
 ## Report tooling issues
 
 Report every distinct Domino CLI, SDK, documentation, or setup issue you encounter, even if you find a workaround. Use `domino feedback --reporter agent --title "Short summary" --body-file report.md --json` and follow the [reporting guidance](references/troubleshooting.md#report-a-tooling-issue). Include reproduction steps, expected and actual behavior, impact, and the workaround. Remove credentials and private participant data before submitting. Keep the returned issue link in your final handoff. If submission fails, retain the report and mention the delivery failure; do not repeatedly retry or let feedback block independent work.
@@ -57,6 +68,7 @@ Choose the reference that matches the task:
 - Before starting or resuming work in a Domino-hosted repository, or sharing its staging preview, follow the [source and release workflow](references/hosted.md#source-and-release-workflow). Read [hosted projects](references/hosted.md) for checkout and app setup.
 - For integration into an existing codebase, read [existing apps](references/existing-app.md).
 - Before authoring a quest, read [authoring](references/authoring.md#find-a-snippet) and check the live snippet catalog for a suitable starting point. The same reference covers reusable types, collections, leaderboards, external points, and publication.
+- To reward a wallet's on-chain action (an EVM contract event, or a Solana transaction that called a program), read [on-chain actions](references/onchain.md).
 - To reward posting or tweeting on X, read [rewarding X posts](references/authoring.md#rewarding-x-posts) first. X does not allow apps that reward users for posting, so Domino pays only creators an operator approved.
 - For standings, own rank, nearby participants, or pagination, read [participant API](references/participant-api.md#leaderboard-reads).
 - Before calling a campaign ready, or to reproduce a reported campaign bug, simulate it with test members over several days: read [campaign testing](references/campaign-testing.md).
