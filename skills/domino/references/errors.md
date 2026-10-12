@@ -126,8 +126,8 @@ The [participant API](participant-api.md#client-conventions) describes the parti
 | `organization-not-provisioned`  | The organization is not set up for Domino Console.                                              |
 | `test-environment-required`     | The action works only in the test environment, such as development, staging, test members and preparing a promotion. |
 | `operator-required`             | Acting as a test member on a staging app needs a staging link minted by Console, a CLI session, or a personal or automation key that holds `publish`. A password staging session, and a link an app's key or an MCP client minted, name no operator. See [check participant flows on staging](campaign-testing.md#check-participant-flows-on-staging). |
-| `live-environment-required`     | The action works only in live: deployment review, rejection, promotion and rollback, and deciding or rolling back an environment promotion. |
-| `promotion-required`            | 422: live refuses a definition change, such as a quest, its settings, a point ledger, a badge or archive state, and a code deployment (`domino deploy --environment live`, `management.deployments.preview`), from every credential. Make the change or deploy in test, then `domino promote`. See [test and live](https://console.domino.run/docs/concepts/environments). |
+| `live-environment-required`     | The action works only in live: deployment review, rejection and promotion, and deciding or rolling back an environment promotion. Deployment rollback works in both: in test it publishes at once. |
+| `promotion-required`            | 422: live refuses a definition change, such as a quest, its settings, a point ledger, a badge or archive state, and a code deployment (`domino deploy --environment live`, `management.deployments.preview`), from every credential. `domino deploy rollback --environment live` gets it from the CLI before anything is sent. Make the change, deploy or roll back in test, then `domino promote`. See [test and live](https://console.domino.run/docs/concepts/environments). |
 | `promotion-empty`               | 409: live already matches test, so there is nothing to promote.                                 |
 | `promotion-changed`             | 409: test or live changed after the promotion was prepared; approval changed nothing. Prepare a new promotion. |
 | `promotion-decided`             | 409: the promotion was already applied, rejected or superseded.                                 |
@@ -189,7 +189,7 @@ Offers have their own refusal codes:
 | Code                  | Meaning                                                               |
 | --------------------- | --------------------------------------------------------------------- |
 | `offer-not-found`     | No published offer has the requested key or ID.                       |
-| `offer-paused`        | The operator paused the offer.                                        |
+| `offer-paused`        | The operator paused or archived the offer.                            |
 | `offer-changed`       | The offer changed since the operator read it.                         |
 | `offer-limit-reached` | The member reached this offer's redemption limit.                     |
 | `offer-out-of-stock`  | This offer has no stock left.                                         |
@@ -255,7 +255,8 @@ A dashboard read gives a failing panel its own `error` instead of failing: `grou
 | `subscription-canceling`                                                             | 409: the subscription is set to end when its period does. Resume it (`billing.resume`) before changing its plan. |
 | `no-customer`                                                                        | 409: the organization has no Stripe customer yet, so there is no customer portal (`billing.portal`, `billing.organizationPortal`). Subscribe a project first (`billing.checkout`). |
 | `test-member-reset-blocked`                                                          | Relay cannot safely reset the test member; `state` names the blocking record.                 |
-| `test-member-clock-limit`                                                            | The test member's clock cannot advance beyond 90 days.                                       |
+| `test-member-clock-limit`                                                            | The test member's clock cannot run more than 90 days ahead of real time.                     |
+| `test-member-clock-past`                                                             | `advance` with `to` names an instant at or before the test member's clock; it only moves forward. |
 | `attempt-not-rejected`                                                               | 409: only a rejected attempt can be accepted anyway; this one is accepted, progressed, failed, needs review or is still being checked. Retry a failed attempt (`attempts.retry`) and review one that needs review (`attempts.review`). |
 | `attempt-superseded`                                                                 | 409: `attempts.acceptAnyway` accepts only the member's latest attempt on the quest; the error names the newer attempt, and `attempts.get` answers it as `supersededBy`. |
 | `quest-archived`                                                                     | 409: `attempts.acceptAnyway` refuses an attempt on an archived quest. Unarchive the quest first.                                     |
@@ -264,7 +265,7 @@ A dashboard read gives a failing panel its own `error` instead of failing: `grou
 
 ## Operator corrections and retired operations
 
-`inventory-in-use` refuses item archive while any retained offer, including a paused offer, or pickup variant references it. The response's `offers` and `pickups` arrays identify the blockers. Offers have no archive operation yet, so their backing items cannot be archived. Reconfigure pickup references away from the item first. `inventory-archived` refuses new allocations, restocking and pickup configuration against an archived item; unarchive it first.
+`inventory-in-use` refuses item archive while any retained offer, including a paused or archived offer, or pickup variant references it. The response's `offers` and `pickups` arrays identify the blockers. An offer's backing item therefore cannot be archived; archive the offer instead. Reconfigure pickup references away from the item first. `inventory-archived` refuses new allocations, restocking and pickup configuration against an archived item; unarchive it first.
 
 | Code                               | Meaning                                                                                         |
 | ---------------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -280,7 +281,7 @@ New operator corrections also return:
 
 | Code | Recovery |
 | --- | --- |
-| `inventory-in-use` | Remove pickup references first. Enabled and paused offers retain stock references and currently have no archive operation, so their backing items cannot be archived. |
+| `inventory-in-use` | Remove pickup references first. Every offer, paused or archived, keeps its stock reference, so archive the offer instead of its backing item. |
 | `inventory-archived` | Unarchive the item before configuring pickup, restocking or making a new allocation. |
 | `group-in-use` | The group is a leaderboard's exclusion group, or a quest that is not archived rewards it with `groupMembership`. The response's `leaderboards` array names those boards; bind them to another exclusion group (`leaderboards bind-exclusion-group`). Its `quests` array names those quests; remove the reward or archive the quest. Then archive the group. |
 | `enrollment-not-found` | Read the member's quest enrollments before withdrawing. |

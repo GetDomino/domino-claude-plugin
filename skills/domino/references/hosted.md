@@ -65,7 +65,7 @@ Real sign-in offers the OAuth providers and email code Domino configures for the
 
 Participant profiles (names and avatars on leaderboards and profile pages) are private by default too. Read the settings with `domino api GET /profile-settings`, and change them with `domino api POST /profile-settings body.json` holding `visibility`, `defaults` (the ordered accounts that fill in names and pictures, such as `["x", "discord"]`; `[]` for generated), the read `revision` as `expectedRevision`, a `reason` and an `actionId` (publish permission; live refuses it from every credential, Console included, with `promotion-required`). See [profiles](participant-api.md#profiles).
 
-Use `domino check` and the app's build script to verify source. `domino check` reports source problems Relay would refuse at deployment, such as two quests declaring one [budget](authoring.md#automatic-and-repeatable-quests) key differently. Exercise the requested participant flow in the running app before staging.
+Use `domino check` and the app's build script to verify source. `domino check` reports source problems Relay would refuse at deployment, such as two quests declaring one [budget](authoring.md#automatic-and-repeatable-quests) key differently, or an author budget on a quest without a tracker trigger. Exercise the requested participant flow in the running app before staging.
 
 For leaderboards, register authored modules in the manifest's `leaderboards` list. `domino check` bundles them even when the project has no quests. `domino dev` synchronizes their definitions with the other project resources. Verify signed-in rank reads through the participant proxy; a successful build alone does not establish access or scoring behavior.
 

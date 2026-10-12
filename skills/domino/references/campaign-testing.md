@@ -49,6 +49,7 @@ domino test-members act MEMBER QUEST --json                                    #
 domino test-members act MEMBER QUEST --input '{"kind":"text","value":"gm"}' --json
 domino test-members act MEMBER QUEST --wait --json                             # the settled attempt: status, reason, code
 domino test-members advance MEMBER --days 1 --json
+domino test-members advance MEMBER --minutes 90 --json                         # or --hours N, --to INSTANT
 ```
 
 `act` answers the queued attempt. With `--wait` it reads the attempt until it is no longer queued, evaluating or deferred, and prints it with its `status`, `reason` and `code`; after `--timeout` seconds (default 60) it prints the attempt as it stands. Reading the attempt also needs `read`, which a personal API key may not carry.
@@ -126,12 +127,13 @@ Evaluators break on the record they did not expect, not on the happy one.
 
 Time is where campaigns look right on day one and break on day three.
 
-- Run streaks across a missed day and two submissions on one day. Advance with `--days 1` between days, not by waiting. Advancing keeps the member's time of day, so it cannot place an action just before or after midnight; test that edge in the evaluator with `runQuest`'s `now` and `timeZone`.
+- Run streaks across a missed day and two submissions on one day. Advance with `--days 1` between days, not by waiting; `--days` keeps the member's time of day.
+- Day edges and time blocks: `--hours N` (1–720), `--minutes N` (1–43200) and `--to INSTANT` move the clock by exact time. Use them to act just before and just after midnight in the project's time zone, or on both sides of a block edge such as a 90-minute window: `--to 2026-10-09T23:59:00+02:00`, act, `--minutes 2`, act. `--to` takes an ISO 8601 instant with an offset and must be later than the member's clock (`test-member-clock-past`). Pass one of `--days`, `--hours`, `--minutes` or `--to` per call.
 - Daily quests: act, advance one day, act again; then act twice without advancing and expect the second to be refused or to change nothing.
 - Availability windows and campaign dates: advance a member past the end and confirm the quest closes; start one before a quest opens.
 - The project calendar's time zone decides where a day ends. A campaign announced in one time zone and configured in another shifts every deadline.
 - Deferred evaluations and outbox retries wait in real time. Advancing a member does not wake a deferred attempt early; read the attempt's `deferUntil` and wait.
-- Each member can advance at most 90 days in total. Plan long campaigns as several shorter personas.
+- A member's clock can run at most 90 days ahead of real time, whichever units moved it (`test-member-clock-limit`). Plan long campaigns as several shorter personas.
 
 ### Referrals
 
@@ -218,6 +220,8 @@ Report each gap you had to route around in your handoff, so the operator knows w
    - `POST /__domino/toolbar/session` with `{ "member": "<id>" }` signs the page in as that member and sets `relay_session`; `{ "member": null }` signs out. Reload the page afterwards. The session is an ordinary 8-hour member session.
    - `POST /__domino/toolbar/members/<id>/advance` with `{ "days" }`, `GET …/<id>/quests`, `POST …/<id>/passes` with `{ "quest" }`, and `GET …/<id>/history?since=<ms>` match `domino test-members advance`, `pass` and `history`, which you can use instead.
 4. **Walk the flow** in the browser as the member, then read the outcome with `domino test-members history`.
+
+App code never reads the toolbar's endpoints. An app that picks phases or open quests by date reads the member's clock from `relay.me.get()` (`clock`) with `memberTime()`, and reads it again on `domino:test-state-changed` ([participant API](participant-api.md#the-members-clock)), so an advanced test member sees the app on their own date.
 
 Who the link names decides whether step 3 works. Each toolbar request checks again that the operator still holds `publish` in test, and that the key behind the link is still active:
 
