@@ -154,7 +154,7 @@ A resume (`deploy --resume`, `stage --request-id`) runs only in a pinned scope: 
 | `deploy.promote` | `domino deploy --promote` in live | the promotion action UUID | `operations resume <id>` returns the pending promotion that action prepared, in the deployment record shape, or prepares it once. Approval still happens in Console. |
 | `deployments.rollback` | `domino deploy rollback` in test | the rollback action UUID | `operations resume <id>` returns the deployment that action published, or rolls back once. |
 | `promotions.prepare` | `domino promote` in test | the promotion action UUID | `operations resume <id>` returns the promotion that action prepared, or prepares it once. Approval still happens in Console. |
-| `stage.build`    | `domino stage`  | the build request ID   | `stage --commit <sha> --request-id <id>` returns the build that request created, or creates it once. It needs no checkout: it skips the hosting preflight, the uncommitted-changes check and the missing-secret warnings. |
+| `stage.build`    | `domino stage`  | the build request ID   | `stage --commit <sha> --request-id <id>` returns the build that request created, or creates it once. It needs no checkout: it skips the hosting preflight, the uncommitted-changes check, the missing-secret warnings and the wallet sign-in warning. |
 
 A `deploy.publish` or `deploy.promote` operation sends `POST /deployments/:deployment/publish` or `/promote`, with the deployment in the path, whichever CLI release saved it.
 
@@ -253,6 +253,7 @@ A headless agent or CI uses an organization automation key (`dak_…`) as `RELAY
 - Any write in live, including drafts, previews and secrets, is refused with `console-approval-required`. Ask the owner to publish from Console.
 - Grants, the team, `/project` changes, `/tokens`, CLI sign-in approval and creating keys are refused with `credential-not-allowed` or `permission-required`.
 - `domino create` without the key's create-projects permission fails with `permission-required`; a project outside its list fails with `scope-mismatch`.
+- A project it creates connects a Discord server another project of the organization already connects, with `domino integrations discord connect --server <id>` (list them with `domino integrations discord servers`) and the key's `publish` permission. Installing Domino's bot into a new server takes an organization administrator in Console: stop and ask on `server-not-connected-in-organization`.
 
 `domino whoami --json` prints `credential`: `{ kind: "automation", id, name, projects, createProjects, permissions }`, with `projects` null for every project. Its changes are audited as `automation:<id>`.
 

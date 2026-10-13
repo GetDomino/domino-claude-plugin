@@ -123,7 +123,6 @@ The [participant API](participant-api.md#client-conventions) describes the parti
 | `console-approval-required`     | Approving, rejecting or rolling back a live deployment, and approving or rejecting a promotion, needs a Console session; a `domino login` session cannot write in live, and an automation key writes nothing in live. |
 | `scope-mismatch`                | The credential belongs to another organization, project or environment, or the automation key does not reach this project.                        |
 | `organization-required`         | Choose an organization first.                                                                   |
-| `organization-not-provisioned`  | The organization is not set up for Domino Console.                                              |
 | `test-environment-required`     | The action works only in the test environment, such as development, staging, test members and preparing a promotion. |
 | `operator-required`             | Acting as a test member on a staging app needs a staging link minted by Console, a CLI session, or a personal or automation key that holds `publish`. A password staging session, and a link an app's key or an MCP client minted, name no operator. See [check participant flows on staging](campaign-testing.md#check-participant-flows-on-staging). |
 | `live-environment-required`     | The action works only in live: deployment review, rejection and promotion, and deciding or rolling back an environment promotion. Deployment rollback works in both: in test it publishes at once. |
@@ -205,6 +204,8 @@ Analytics queries (`domino analytics query`, `management.analytics.query`) answe
 | `unknown-reference`                             | A quest, tracker, offer, program, leaderboard or ledger key names nothing; `filter` and `key` say which. |
 | `group-not-found`                               | No group has this key in the environment; `group` names it.                              |
 
+A deployment, preview or staging activation whose badge, point ledger, offer, leaderboard, referral, dashboard or tracker fails its schema answers 422 `validation-failed` naming the kind, key and field, such as `Offer "ladder" is invalid: stock: Invalid input: expected number, received undefined`. `domino check` reports the same failure first as a `DEFINITION_INVALID` diagnostic with the entry `file`, `export` and `path`.
+
 Dashboard deployments (`domino deploy` with `dashboards` in relay.json) answer 422 with these codes; see [dashboards](authoring.md#dashboards):
 
 | Code                                                                       | Meaning                                                                                       |
@@ -229,6 +230,9 @@ A dashboard read gives a failing panel its own `error` instead of failing: `grou
 | `invalid-hostname`                                                                   | The custom domain is not a hostname Domino serves: a root domain such as `example.com`, a wildcard, an IP address, a Domino domain, a malformed name, or a blocked name. Attach a subdomain such as `www.example.com`. |
 | `domain-suspended`                                                                   | 409: Domino suspended this custom domain, so it cannot be removed. Contact Domino support. |
 | `integration-required`                                                               | Connect the integration, such as Discord, in Console **Integrations**. Deployments report it as a warning, not an error. |
+| `server-not-connected-in-organization`                                               | 409: no other project of the organization connects that Discord server, ready, in this environment. An organization administrator installs the bot in Console **Integrations**; `domino integrations discord servers` lists the servers you can connect. |
+| `integration-connected`                                                              | 409: the project already has a Discord connection, even one needing attention. An organization administrator changes or repairs it in Console. |
+| `server-not-reachable`                                                               | 422: Domino's bot can no longer see that Discord server. An organization administrator reconnects it in Console **Integrations**. |
 | `action-id-reused`                                                                   | The action ID was already used with different input. Use a new ID for a new action.         |
 | `record-conflict`                                                                    | A tracker record's observation time was already used with different data.                    |
 | `tracker-schema-required`                                                            | Publish the custom tracker with a data schema before ingesting records.                       |
