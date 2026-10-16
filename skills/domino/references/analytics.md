@@ -59,4 +59,4 @@ Describe each panel with its metric's definition from `domino analytics metrics`
 - **Group keys are local to an environment.** Promotion doesn't copy groups, so a panel filtered on a group that live doesn't have reads `group-not-found` there until the operator creates it.
 - **Caps.** A dashboard holds at most 24 panels, and a project at most 20 dashboards that aren't archived.
 - **Retire by archiving.** Removing a dashboard from relay.json doesn't delete it. Run `domino dashboards archive <key> --reason "…"` in test, and `domino dashboards unarchive <key> --reason "…"` to restore it.
-- **Console doesn't show dashboards yet.** Operators read them with `domino dashboards list` and `domino dashboards get`.
+- **Console shows dashboards but can't edit them.** Operators pick one in the switcher on **Analytics** (it has its own address, `/analytics/<key>`), or read it with `domino dashboards get`. Changes go through code and a deploy.

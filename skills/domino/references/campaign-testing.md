@@ -14,7 +14,7 @@ Work in the test environment with a `domino login` CLI session, a personal API k
 | Confirm a staff-confirmed quest | `confirm` | staff |
 | Decide an attempt awaiting review | `review` | reviewer |
 
-A personal API key carries only the permissions chosen when it was created. Before you start, check which steps your campaign needs. A refusal with code `permission-required` means the credential lacks that step's permission; ask the operator for it. Method details, limits and reset rules are in [test members](authoring.md#test-members) and the public guide, [Try quests with test members](https://console.domino.run/docs/use/quests#try-quests-with-test-members).
+A personal API key carries only the permissions chosen when it was created. Before you start, check which steps your campaign needs. A refusal with code `permission-required` means the credential lacks that step's permission; ask the operator for it. Method details, limits and reset rules are in [test members](quest-rules.md#test-members) and the public guide, [Try quests with test members](https://console.domino.run/docs/use/quests#try-quests-with-test-members).
 
 ## The loop
 
@@ -54,6 +54,17 @@ domino test-members advance MEMBER --minutes 90 --json                         #
 
 `act` answers the queued attempt. With `--wait` it reads the attempt until it is no longer queued, evaluating or deferred, and prints it with its `status`, `reason` and `code`; after `--timeout` seconds (default 60) it prints the attempt as it stands. Reading the attempt also needs `read`, which a personal API key may not carry.
 
+Every `test-members` change takes `--action-id ID`: any 1–100 letters, digits, `-` or `_`, the same rule as the management client's `actionId`. The CLI sends it as the change's `actionId` without saving an operation, so a simulation can name each action once (`app-sim-12-3-s2-t0`) and retry it from the CLI or the management client alike. Repeat it only with the same input. `--operation-id UUID` instead saves the change in the operation journal; the two can't be combined.
+
+`act`, `pass` and `accept-anyway` (`testMembers.act`, `pass`, `acceptAnyway`) answer an `Attempt`, and `act --wait` prints one too. `domino attempts get ATTEMPT` (`attempts.get`) answers a `ManagedAttempt`, which wraps the attempt with what surrounds it:
+
+| Command | Answer |
+| --- | --- |
+| `test-members act\|pass\|accept-anyway` | `Attempt`: `{ id, quest, member, status, reason, code, generation, … }` |
+| `test-members history MEMBER` | `{ attempts, … }`: each an `Attempt` with `eligibleAt` |
+| `attempts list` | `{ items, releases, people, total, nextCursor }`: each item an `Attempt` |
+| `attempts get ATTEMPT` | `ManagedAttempt`: `{ attempt, release, events, supersededBy?, person }`; read the status as `.attempt.status` |
+
 Give a member the wallet a holding or balance quest reads with `domino test-members link-wallet MEMBER --chain solana|eip155|cosmos --address ADDRESS` (Cosmos also takes `--network cosmos:<chain ID>`). Set up the rest of what a quest gates on with the ordinary operator commands, which accept a test member's ID: `domino quests enroll QUEST MEMBER`, `domino points award MEMBER LEDGER --amount N --reason …` for a points-balance prerequisite, `domino groups add GROUP MEMBER --reason …` for a group prerequisite. For custom trackers whose source declares `identities: ["member"]`, send records with `domino trackers ingest TRACKER FILE`, naming the member as `"author": { "id": "MEMBER" }` and keeping real `occurredAt` and `observedAt`; Relay projects them onto that member's clock. For managed X and Discord trackers, send the member's activity with `domino test-members record` (see [X and Discord activity](#x-and-discord-activity)). There is no CLI command for staff confirmation or review; use `domino api` or the management client:
 
 ```sh
@@ -63,9 +74,9 @@ domino api POST /attempts confirm.json --json
 domino api POST /attempts/ATTEMPT/review review.json --json
 ```
 
-Take `generation` from `domino attempts get ATTEMPT --json`. Use a new `actionId` for each new decision, and the same one only to retry it.
+Take `generation` from `.attempt.generation` of `domino attempts get ATTEMPT --json`. Use a new `actionId` for each new decision, and the same one only to retry it.
 
-To get a persona past a quest whose check you can't satisfy in test (a follow on X, an on-chain balance, a quiz) and on to the quests behind it, pass it: `domino test-members pass MEMBER QUEST [--completion-key KEY] --json` admits an attempt as `act` would, then accepts it as you without running the check. Prerequisites, availability, enrollment, a waiting attempt and the retry cooldown still refuse it, and the completion policy, budgets and rewards still apply: a progress quest counts one step, a streak quest today's action, and a keyed quest without `--completion-key` gets a fresh key. Automatic quests can't be passed; send the record that starts a tracker-triggered quest, and if its check rejects the attempt, `domino test-members accept-anyway MEMBER ATTEMPT --json` accepts that rejected attempt as you. Both answer the decided attempt. Use them only for checks you aren't testing: a passed quest proves nothing about its own check.
+To get a persona past a quest whose check you can't satisfy in test (a follow on X, an on-chain balance, a quiz) and on to the quests behind it, pass it: `domino test-members pass MEMBER QUEST [--completion-key KEY] --json` admits an attempt as `act` would, then accepts it as you without running the check. Prerequisites, availability, enrollment, a waiting attempt and the retry cooldown still refuse it, and the completion policy, budgets and rewards still apply: a counter quest counts one step, a streak quest today's action, and a keyed quest without `--completion-key` gets a fresh key. Automatic quests can't be passed; send the record that starts a tracker-triggered quest, and if its check rejects the attempt, `domino test-members accept-anyway MEMBER ATTEMPT --json` accepts that rejected attempt as you. Both answer the decided attempt. Use them only for checks you aren't testing: a passed quest proves nothing about its own check.
 
 Submission returns a queued attempt; evaluation continues in the background. Read the outcome before acting again.
 
@@ -74,12 +85,14 @@ Done when every persona has walked its whole path, including the days it is mean
 ### 4. Read what happened
 
 ```sh
-domino test-members history MEMBER --json    # attempts with eligibleAt, skipped tracker outcomes with code
+domino test-members history MEMBER --json    # attempts with questKey and eligibleAt, skipped tracker outcomes with code
 domino members get MEMBER --json             # progress, completions, balances, enrollments
 domino members progress MEMBER --json        # quest progress, attempts, balances; no quest code
-domino attempts get ATTEMPT --json           # status, reason, code, progress
+domino attempts get ATTEMPT --json           # .attempt: status, reason, code, progress
 domino trackers outcomes TRACKER --json      # why a record admitted no attempt
 ```
+
+History names each attempt's and skipped outcome's quest by ID as `quest` and by authoring key as `questKey`, absent for a quest created without a key, so filter it by key directly. `domino attempts list --json` items carry only the quest ID: map an attempt's `release` to the `releases[]` entry with that `id`, whose `key` is the quest's key.
 
 Compare each persona against what the campaign promises. An outcome is a bug when it differs from the brief, even if the code did exactly what it says.
 
@@ -128,7 +141,7 @@ Evaluators break on the record they did not expect, not on the happy one.
 Time is where campaigns look right on day one and break on day three.
 
 - Run streaks across a missed day and two submissions on one day. Advance with `--days 1` between days, not by waiting; `--days` keeps the member's time of day.
-- Day edges and time blocks: `--hours N` (1–720), `--minutes N` (1–43200) and `--to INSTANT` move the clock by exact time. Use them to act just before and just after midnight in the project's time zone, or on both sides of a block edge such as a 90-minute window: `--to 2026-10-09T23:59:00+02:00`, act, `--minutes 2`, act. `--to` takes an ISO 8601 instant with an offset and must be later than the member's clock (`test-member-clock-past`). Pass one of `--days`, `--hours`, `--minutes` or `--to` per call.
+- Day edges and time blocks: `--hours N` (1–720), `--minutes N` (1–43200) and `--to INSTANT` move the clock by exact time. Use them to act just before and just after midnight in the project's time zone, or on both sides of a block edge such as a 90-minute window: `--to 2026-10-09T23:59:00+02:00`, act, `--minutes 2`, act. `--to` takes epoch milliseconds or an ISO 8601 instant with an offset, and must be later than the member's clock (`test-member-clock-past`). Pass one of `--days`, `--hours`, `--minutes` or `--to` per call.
 - Daily quests: act, advance one day, act again; then act twice without advancing and expect the second to be refused or to change nothing.
 - Availability windows and campaign dates: advance a member past the end and confirm the quest closes; start one before a quest opens.
 - The project calendar's time zone decides where a day ends. A campaign announced in one time zone and configured in another shifts every deadline.
@@ -137,14 +150,14 @@ Time is where campaigns look right on day one and break on day three.
 
 ### Referrals
 
-A test member accepts an invitation with `domino test-members accept-referral MEMBER (--code CODE | --inviter MEMBER)`, as a signed-in member accepting it would. `--inviter` names another test member and uses its invitation code, allocating one if it has none. The same refusals apply: `self-referral`, `inviter-already-accepted` for a second inviter, `invitation-closed` once the invitee has completed a quest, `referral-cycle` and `invitation-not-found`. Accepting the same inviter again changes nothing. A `signup` program qualifies the invitee on acceptance and pays both sides; a `questCompleted` program qualifies when the invitee completes that quest.
+A test member accepts an invitation with `domino test-members accept-referral MEMBER (--code CODE | --inviter MEMBER)`, as a signed-in member accepting it would. `--inviter` names another test member and uses its invitation code, allocating one if it has none. The same refusals apply: `self-referral`, `inviter-already-accepted` for a second inviter, `invitation-closed` once the invitee has completed a quest other than a program's qualifying quest, `referral-cycle` and `invitation-not-found`. Accepting the same inviter again changes nothing. A `signup` program qualifies the invitee on acceptance and pays both sides; a `questCompleted` program qualifies when the invitee completes that quest, or on acceptance when they already completed it.
 
 A run for an inviter, two invitees and a quest-qualified program:
 
-1. Create three members. Have the invitees accept: `domino test-members accept-referral INVITEE --inviter INVITER`. Accept before any of the invitee's quest completions, or `invitation-closed` refuses it.
+1. Create three members. Have the invitees accept: `domino test-members accept-referral INVITEE --inviter INVITER`. Accept before the invitee completes any quest other than a program's qualifying quest, or `invitation-closed` refuses it.
 2. Pass or act on the qualifying quest as each invitee, advancing days between them when the program's timing matters.
 3. Read the result: `domino referral-relationships list` for qualifications, `domino referral-relationships history INVITER` for the inviter's referral rewards, and `domino points get` for each balance. Check milestones at their exact counts.
-4. Try the refusals: the inviter's own code, a second inviter, and an invitee who already completed a quest.
+4. Try the refusals: the inviter's own code, a second inviter, and an invitee who already completed a quest other than the qualifying quest.
 
 Once a test member has accepted an inviter or been accepted as one, `reset` refuses it with 409 `test-member-reset-blocked` (`referrals affect another member`), so create fresh members for each referral run. Check the referral UI itself on the staging site, signed in as a test member.
 
@@ -161,9 +174,9 @@ Once a test member has accepted an inviter or been accepted as one, `reset` refu
 Quests that read `x.profile()`, `follows()`, `reposted()` or a member's Discord roles need an account X and Discord know. Link a real, public account to the test member without OAuth:
 
 ```sh
-domino test-members link-account MEMBER --provider x --username solflare --json
-domino test-members link-account MEMBER --provider discord --id 80351110224678912 --json
-domino test-members unlink-account MEMBER --provider x --id 1263464405834899456 --json
+domino test-members link-account MEMBER --kind x --username solflare --json
+domino test-members link-account MEMBER --kind discord --subject 80351110224678912 --json
+domino test-members unlink-account MEMBER --kind x --subject 1263464405834899456 --json
 ```
 
 - Quest code reads the linked account like one a member linked: `x.connection()` returns its ID, and the profile, follower, repost and role reads ask X and Discord about it. Pick accounts whose public state puts each persona where you want it: following the target, not following it, holding the role, missing it.
@@ -185,7 +198,7 @@ domino test-members record MEMBER --tracker reactions --data '{"emoji":{"name":"
 domino test-members record MEMBER --tracker reactions --as messageAuthor --json   # a reaction to MEMBER's message
 ```
 
-`--data` uses the stored record's paths, the same ones the quest's `where` reads: `content`, `author.username`, `isReply` and the counts (`likeCount`, `viewCount` …) for X; `channelId`, `replyTo` and `text` for messages (`text` only when the tracker stores text); `channelId`, `messageId`, `emoji`, `reactorRoles` and `messagePublishedAt` for reactions. Relay sets IDs and real time. The answer's `admissions` counts the tracker's quests that admitted, skipped or filtered out the record; `test-members history` lists skips with their code.
+`--data` uses the stored record's paths, the same ones the quest's `where` reads: `content`, `author.username`, `isReply` and the counts (`likeCount`, `viewCount` …) for X; `channelId`, `parentChannelId`, `replyTo` and `text` for messages (`text` only when the tracker stores text); `channelId`, `parentChannelId`, `messageId`, `emoji`, `reactorRoles` and `messagePublishedAt` for reactions. Set `parentChannelId` to make the record a message or reaction in a thread of that channel. Relay sets IDs and real time. The answer's `admissions` counts the tracker's quests that admitted, skipped or filtered out the record; `test-members history` lists skips with their code.
 
 What to watch for:
 
@@ -198,15 +211,31 @@ What to watch for:
 
 Reset removes the member's synthetic accounts and records with everything else, and unlinks its linked accounts.
 
+### Photo quests
+
+`domino test-members act MEMBER QUEST --photo shot.jpg --wait` uploads a JPEG or PNG of at most 5 MB as the member's photo, then submits it. The quest's real image check runs on it, so `ctx.images.review` calls the AI provider. With the quest's `review: () => ({ enabled: true })`, a photo the check finds `unclear` and maps to `decision.review` settles as `needs-review` and waits in Console's review queue; with review off it becomes a rejection. Only that member can submit the photo, and reset deletes it.
+
+To cover the three answers without a real photo for each, test the evaluator with `runQuest` and `facts.images.review`, which answers `ctx.images.review` with `{ kind: "pass" | "fail" | "unclear", reason }`. `facts.review.photo` answers only the deprecated `ctx.review.photo()`.
+
 ### What test members cannot reach yet
 
 | Quest needs | With test members | Instead |
 | --- | --- | --- |
-| Photo submission | Refused | `runQuest` with `facts.review.photo` answers `pass`, `fail` and `unclear` |
 | X profile, follower and repost reads, Discord roles, for a state no public account has | Link a real account with `test-members link-account`; a synthetic account is unknown to X and Discord | `runQuest` with `facts.x` or `facts.discord` |
-| Accepting a referral code | Not possible | Two signed-in test participants, on real time |
 
 Report each gap you had to route around in your handoff, so the operator knows which paths were proven end to end and which only at the evaluator.
+
+## Pace a live rehearsal
+
+The loop walks members through simulated days. A rehearsal moves many members in real time instead, so leaderboards and screens update every few seconds while people watch. Run it from a driver process outside the hosted app: a terminal, a CI job or any long-running process.
+
+1. **Drive from outside the hosted app.** Use `management.testMembers.*` (`createManagementClient` in the test environment) or `domino test-members`, with a `domino login` session, a personal API key or an organization automation key that holds `publish` in test. A hosted app key or service key gets 403 `credential-not-allowed`.
+2. **Don't pace with schedules, `waitUntil` or a browser tab.** A hosted schedule runs at most every 5 minutes (`every` from `5m`, or cron minute slots at least five minutes apart), once per run, within 30 seconds, and must not start work that outlives the response ([scheduled jobs](https://console.domino.run/docs/build/schedules)). Use one only for coarse steps that fit those bounds. A loop in an open page stops when the tab closes.
+3. **Give each step a deterministic `actionId`.** Derive it from the scenario, such as `rehearsal-3-m17-s4` (1–100 letters, digits, `_` or `-`). A restarted driver resends steps with the same IDs and input, and each replays its first answer instead of acting twice. From the CLI, pass the same ID as `--action-id` (see [run the days](#3-run-the-days)).
+4. **Bound concurrency.** Keep a fixed number of calls in flight, not one per member. The management client resends a write that carries an `actionId` after no answer, HTTP 500, 502, 503 or 504, or a 429 with `Retry-After`, waiting as asked, up to three tries within the call's deadline (30 seconds by default). When a call still fails with 429, slow the driver down. [Rate limits](automation.md#rate-limits) lists the calls with limits of their own, such as linking an X account by handle.
+5. **Move clocks for time.** For streaks, daily quests and availability windows, `advance` the member (`--minutes`, `--hours`, `--days` or `--to`) instead of waiting in real time. Pace in real time only what people watch.
+
+Done when the driver can stop and restart mid-scenario without doubling a step, and every member's history matches the scenario's step list.
 
 ## Check participant flows on staging
 
@@ -217,9 +246,17 @@ Report each gap you had to route around in your handoff, so the operator knows w
 3. **Act as a test member.** The page shows the test toolbar when the link names an operator. Use its member picker, or call the toolbar's endpoints on the staging origin with the staging cookie, `X-Domino-Toolbar: 1` on every request, and the staging origin as `Origin` on every POST:
    - `GET /__domino/toolbar/state`: the operator, the project's test members, and who the page is signed in as.
    - `POST /__domino/toolbar/members` with `{ "name" }` creates a test member.
-   - `POST /__domino/toolbar/session` with `{ "member": "<id>" }` signs the page in as that member and sets `relay_session`; `{ "member": null }` signs out. Reload the page afterwards. The session is an ordinary 8-hour member session.
+   - `POST /__domino/toolbar/session` with `{ "member": "<id>" }` signs the page in as that member and sets the `__Host-relay_session` cookie; `{ "member": null }` signs out. Reload the page afterwards. The session is an ordinary 8-hour member session.
    - `POST /__domino/toolbar/members/<id>/advance` with `{ "days" }`, `GET …/<id>/quests`, `POST …/<id>/passes` with `{ "quest" }`, and `GET …/<id>/history?since=<ms>` match `domino test-members advance`, `pass` and `history`, which you can use instead.
 4. **Walk the flow** in the browser as the member, then read the outcome with `domino test-members history`.
+
+The toolbar's collapsed bar sits in the bottom-right corner, over the app. When a tap in the browser fails with "`<domino-staging-toolbar>` intercepts pointer events", the app's bottom-pinned UI, such as a tab bar, should make room for it: while the toolbar is mounted, `<html>` carries `data-domino-staging-toolbar` and the `--domino-staging-toolbar-inset-bottom` custom property, the distance from the viewport's bottom edge to the top of the collapsed bar in px. Opening the toolbar leaves it unchanged. Live has no toolbar, so give the property a `0px` fallback:
+
+```css
+nav.tab-bar {
+  padding-bottom: calc(env(safe-area-inset-bottom) + var(--domino-staging-toolbar-inset-bottom, 0px));
+}
+```
 
 App code never reads the toolbar's endpoints. An app that picks phases or open quests by date reads the member's clock from `relay.me.get()` (`clock`) with `memberTime()`, and reads it again on `domino:test-state-changed` ([participant API](participant-api.md#the-members-clock)), so an advanced test member sees the app on their own date.
 

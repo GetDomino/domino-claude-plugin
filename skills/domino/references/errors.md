@@ -69,6 +69,8 @@ A refusal with nothing more specific to say answers with its status's code:
 
 A refusal that follows a write which may have taken effect answers 502 instead of 503 and keeps its code, such as `unavailable`: decide on retrying from the status.
 
+**Large request bodies.** A management write counts the JSON values in its body (each array, object, key, string, number and literal) and refuses one with too many with 413 `payload-too-large` before reading it: more than 2,000,000 on bulk writes (catalog deploys, previews and drafts, deployment previews, release batches, tracker record ingest and member import rows, each up to 64 MB) and more than 500,000 on other writes. Split the batch. A Relay server handles one body over 4 MiB or 500,000 values at a time; another one waits up to 10 seconds, then answers 503 `unavailable` with `Retry-After` before doing anything. The CLI and the SDK clients send any call again after such a 503, within the call's deadline.
+
 ## Routing, scope and identity exchange
 
 | Code                                 | Meaning                                                                                         |
@@ -77,12 +79,14 @@ A refusal that follows a write which may have taken effect answers 502 instead o
 | `PROJECT_MOVED`                      | The project moved to another organization the signed-in operator can access. `moved` names it. |
 | `member-not-found`                   | No member holds the account used for a management lookup.                                      |
 | `account-ambiguous`                  | Several members hold the lookup account. `members` lists their IDs.                            |
+| `identity-ambiguous`                 | An identity command named an X or Discord account by subject, and the member holds it through several issuers, none selected. Name it with the `{ kind: "oauth", provider, issuer, subject }` selector from `members.identityStates.list`. |
 | `TRACKER_SCOPE_DENIED`               | The API key cannot ingest into this tracker.                                                    |
 | `INVALID_IDENTITY_EXCHANGE`          | The identity exchange body is malformed.                                                       |
 | `INVALID_PARTICIPANT_REQUEST`        | The identity integration's participant request is malformed.                                   |
 | `IDENTITY_INTEGRATION_ACCESS_DENIED` | The identity integration credential cannot make this request.                                  |
 | `APP_IDENTITY_UNLINKED`              | An operator unlinked this app identity from its member.                                         |
 | `APP_IDENTITY_CONFLICT`              | The app identity belongs to another member.                                                     |
+| `ACCOUNT_VOUCHING_OFF` | The exchange sent `accounts`, but the app login key's **Vouches accounts** setting is off. Nobody was signed in. |
 
 ## Reload, then try again
 
@@ -119,8 +123,8 @@ The [participant API](participant-api.md#client-conventions) describes the parti
 | `sign-in-expired`               | A CLI sign-in request expired or was already approved. Run `domino login` again.               |
 | `invalid-credential`            | The API key, service key, automation key, hosted app key or identity integration key is expired, revoked or not valid here. |
 | `credential-not-allowed`        | This action needs another kind of credential, such as a Console session or `domino login`. An automation key administers nothing.     |
-| `permission-required`           | The credential lacks the permission or administrator role the action needs, such as an automation key creating a project without its create-projects permission.                    |
-| `console-approval-required`     | Approving, rejecting or rolling back a live deployment, and approving or rejecting a promotion, needs a Console session; a `domino login` session cannot write in live, and an automation key writes nothing in live. |
+| `permission-required`           | The credential lacks the permission or administrator role the action needs, such as an automation key creating a project without its create-projects permission, or a viewer (dashboards only) reading members. |
+| `console-approval-required`     | Approving, rejecting or rolling back a live deployment, and approving or rejecting a promotion, needs a Console session, and so does creating or scoping a live personal API key, whichever environment the CLI selects. In live, a `domino login` session writes only revocations of personal API keys, app secrets, custom domains, catalog previews, review submissions and promotions, a promotion's rollback, image uploads, and creating, checking, canceling, stopping and reverting member imports; an automation key or MCP connector writes nothing in live. |
 | `scope-mismatch`                | The credential belongs to another organization, project or environment, or the automation key does not reach this project.                        |
 | `organization-required`         | Choose an organization first.                                                                   |
 | `test-environment-required`     | The action works only in the test environment, such as development, staging, test members and preparing a promotion. |
@@ -144,6 +148,7 @@ Participant sign-in adds its own:
 | `sign-in-method-disabled`  | The account or wallet is linked but is not a sign-in method, or wallet or Telegram Mini App sign-in is off for the project. |
 | `account-linked-elsewhere` | The account belongs to another member. Accounts are never merged.                         |
 | `account-not-linked`       | Sign in with the provider, or link the account, before verifying.                         |
+| `staging-access-required`  | 403 on a participant request that names a staging address (`<slug>--staging.domino.page`) in `X-Relay-App-Origin` without the staging pass: staging's participant API answers only browsers signed in to staging, through the staging address. An app's own `proxyParticipant` route on staging forwards the pass; calling the API directly with a staging origin does not. Use a preview or the live app for public testing. |
 | `live-offline`             | 403 on any participant request to live: the project's live trial and grace ended without a plan, so live is offline. Test still answers. A plan brings live back. |
 | `limit-reached`            | 403 with `limit: "real-people-in-test"`, `count` and `maximum`: the test environment already has its plan's number of real people, so a person who never joined test cannot sign in to it. People who joined, live sign-ins and test members are unaffected. See [real people in test](https://console.domino.run/docs/concepts/participants#real-people-in-test). |
 
@@ -172,8 +177,10 @@ An attempt that cannot verify Discord because the project has no ready connectio
 | `enrollment-not-required`              | This quest or campaign does not take enrollment.                                               |
 | `not-claimable`                        | The tracker outcome is not historical activity the member can claim.                           |
 | `profile-locked`                       | An operator locked the profile. The member can still hide it.                                 |
+| `unsupported-consent-channel` | Relay records consent for this channel only on a later version. Only `email` is accepted. |
+| `consent-wording-required`, `consent-wording-too-long`, `consent-wording-invalid` | A grant needs the wording the member saw: plain text of at most 2,000 characters, without NUL characters or lone surrogates. |
 | `invitation-not-found`                 | No member has this invitation code.                                                           |
-| `inviter-already-accepted`, `invitation-closed` | The member already accepted another inviter, or already completed a quest.           |
+| `inviter-already-accepted`, `invitation-closed` | The member already accepted another inviter, or already completed a quest other than a referral program's qualifying quest. |
 | `self-referral`, `referral-cycle`      | A member cannot invite themselves, directly or through a cycle of invitations.                |
 | `referral-suspended`                   | The referral program or relationship is suspended.                                            |
 | `pass-expired`, `pass-replaced`, `pass-used` | The collection pass expired, was replaced by a newer one, or was already used.          |
@@ -181,7 +188,7 @@ An attempt that cannot verify Discord because the project has no ready connectio
 | `out-of-stock`, `insufficient-points`  | No units remain, or the balance cannot cover the change.                                      |
 | `point-ledger-not-found`               | No point ledger has the requested key or ID.                                                    |
 | `leaderboard-archived`                 | The leaderboard is archived.                                                                  |
-| `budget-exhausted`                     | A completion payout would exceed its budget. The payout batch is rolled back.                  |
+| `budget-exhausted`                     | A completion payout, or restoring a completion whose revoke returned its budget, would exceed `budget`. Nothing changes. |
 
 Offers have their own refusal codes:
 
@@ -233,6 +240,7 @@ A dashboard read gives a failing panel its own `error` instead of failing: `grou
 | `server-not-connected-in-organization`                                               | 409: no other project of the organization connects that Discord server, ready, in this environment. An organization administrator installs the bot in Console **Integrations**; `domino integrations discord servers` lists the servers you can connect. |
 | `integration-connected`                                                              | 409: the project already has a Discord connection, even one needing attention. An organization administrator changes or repairs it in Console. |
 | `server-not-reachable`                                                               | 422: Domino's bot can no longer see that Discord server. An organization administrator reconnects it in Console **Integrations**. |
+| `bot-permissions-exceed-installer` | 422: Domino's shared bot already holds a permission in that Discord server that the person installing it lacks, such as Manage Roles. Installation connects nothing, and the install page says so. The server's owner, an Administrator, or someone holding all of the bot's permissions there installs it. |
 | `action-id-reused`                                                                   | The action ID was already used with different input. Use a new ID for a new action.         |
 | `record-conflict`                                                                    | A tracker record's observation time was already used with different data.                    |
 | `tracker-schema-required`                                                            | Publish the custom tracker with a data schema before ingesting records.                       |
@@ -247,13 +255,26 @@ A dashboard read gives a failing panel its own `error` instead of failing: `grou
 | `tracker-owned-by-data`                                                              | 409: a deployment declares a tracker created in Console or with `trackers.create`; change it there, or give the tracker in code another key. |
 | `webhook-disabled`                                                                   | Enable the webhook endpoint first.                                                           |
 | `unknown-activity-type`                                                              | A webhook subscribes to an event type Relay never sends. The message lists the valid types.  |
+| `unknown-integration-module`                                                         | Publishing a quest that declares an integration module Relay does not have. The message names it. |
 | `secret-superseded`                                                                  | The webhook secret this action ID issued was rotated since. Rotate the secret again to get a new one. |
 | `review-required`, `deployment-rejected`                                             | Review the draft, or submit the deployment for review, first; or the deployment was rejected. |
 | `already-approved`                                                                   | The leaderboard settlement was already approved.                                             |
 | `build-running`, `build-finished`, `build-superseded`, `nothing-staged`              | A build is running, already finished, no longer current, or nothing is staged.              |
 | `repository-required`, `repository-not-ready`, `preview-expired`                     | Create the hosted repository first; it is still provisioning; or restart `domino dev`.       |
+| `commit-not-found`                                                                   | 422 from `domino stage`: the project's hosted repository has no commit with that SHA, a mistyped SHA or one not pushed yet. No build was started. Push the commit, then stage again. |
+| `unavailable` from a starter                                                         | 503 from repository setup or `GET /starters/{id}` (`domino starters export`): this Domino deployment has not uploaded that starter, or its stored copy failed the integrity check. Nothing to fix on your side; tell a Domino operator. An ID that is not an offered starter answers 404 `not-found`. |
 | `ai-allowance-exhausted`                                                             | 402: the project's AI builder balance is empty, so the Playground cannot start. The message names the allowance and when it renews. |
 | `billing-staff-only`                                                                 | 403: Stripe Checkout and the customer portal are open only to Domino staff for now. Nothing to fix on your side. `billing.read()` and `billing.organization()` say whether billing is open to you before you try. |
+| `unknown-plugin`                                                                     | 404: Relay has no plugin by that ID. `connections.list()` names the plugins available to the project. |
+| `invalid-config`                                                                     | 422: a connection's config breaks the plugin's schema; `path` names the failing field (empty for the whole object). The connection's `configSchema` is the schema. |
+| `invalid-secrets`                                                                    | 422: `connect` lacks a value for a secret field, or a call names a field the plugin doesn't have; `field` names it. |
+| `already-connected`                                                                  | 409: the plugin is already connected in this environment. Change it with `connections.update`, or disconnect it first. |
+| `not-connected`                                                                      | 409: the plugin is disconnected in this environment. Connect it first. |
+| `connection-changed`                                                                 | 409: the connection's `revision` moved on since the `expectedRevision` you sent; the error carries the current `revision`. Read it again before changing it. |
+| `oauth-required`                                                                     | 409: the plugin connects through its vendor's OAuth, not with entered secrets. Start it with `connections.authorize` (`domino connections authorize <plugin>`). |
+| `oauth-not-supported`                                                                | 409: the plugin connects with entered secrets, so it has no OAuth to authorize. Use `connections.connect`. |
+| `plugin-not-configured`                                                              | 409: this deployment lacks the plugin vendor's OAuth app, so nothing can connect it. `plugins.list()` shows `oauth.configured: false`; Domino has to set it up, there is nothing to fix on your side. |
+| `plugin-managed`                                                                     | 409: the plugin connects through its own flow, not with settings, such as Telegram's chats through Domino's bot. Connect it under Integrations in Console, or through its own API (`management.telegram.connect()`). |
 | `subscription-exists`                                                                | 409: the project already has a subscription that holds its plan. Change its plan (`billing.changePlan`) or cancel it (`billing.cancel`) instead. |
 | `no-subscription`                                                                    | 409: the project has no subscription that holds its plan, so there is nothing to change, cancel or resume. Subscribe it first (`billing.checkout`). |
 | `subscription-canceling`                                                             | 409: the subscription is set to end when its period does. Resume it (`billing.resume`) before changing its plan. |
@@ -264,6 +285,8 @@ A dashboard read gives a failing panel its own `error` instead of failing: `grou
 | `attempt-not-rejected`                                                               | 409: only a rejected attempt can be accepted anyway; this one is accepted, progressed, failed, needs review or is still being checked. Retry a failed attempt (`attempts.retry`) and review one that needs review (`attempts.review`). |
 | `attempt-superseded`                                                                 | 409: `attempts.acceptAnyway` accepts only the member's latest attempt on the quest; the error names the newer attempt, and `attempts.get` answers it as `supersededBy`. |
 | `quest-archived`                                                                     | 409: `attempts.acceptAnyway` refuses an attempt on an archived quest. Unarchive the quest first.                                     |
+| `attempt-not-decided`                                                                | 409: `attempts.redactEvidence` deletes evidence only once the attempt is accepted, progressed, rejected or failed; this one, or another attempt that submitted the same photo, still waits for evaluation or review. Decide it first. |
+| `evidence-redacted`                                                                  | 409: staff deleted the attempt's evidence (`attempts.redactEvidence`), so retrying it (`attempts.retry`, or the member retrying their failed attempt) and `attempts.capture` have nothing left to evaluate or replay. `attempts.acceptAnyway` still accepts a rejected one. |
 | `import-status`                                                                      | The [member import](imports.md) is not in a state that allows this, such as applying one that is not `checked`. |
 | `import-empty`                                                                       | The member import has no rows to check, or no ready row to apply.                            |
 
@@ -275,6 +298,7 @@ A dashboard read gives a failing panel its own `error` instead of failing: `grou
 | ---------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `completion-revoked`               | The completion was already revoked; or, from `attempts.acceptAnyway`, the member's completion of this occurrence was revoked and the occurrence kept, so it can't be completed again. |
 | `already-completed`                | From `attempts.acceptAnyway`: the member already has this completion (a once-only quest, or the same completion key), so accepting the attempt would pay nothing. |
+| `key-used`                         | From `attempts.acceptAnyway`: the quest's completion keys are unique across members (`keyed(fn, { across: "members" })`), and another member's completion holds this attempt's key. Revoke that completion with `freeOccurrence: true` first. |
 | `completion-not-revoked`           | Restore refused: the completion isn't revoked.                                                  |
 | `occurrence-taken`                 | Restore refused: the revoke freed the occurrence and `completion` holds it now.                 |
 | `completion-grant-history-missing` | Relay cannot safely revoke an older completion until Domino restores its reward grant history. |
@@ -287,7 +311,7 @@ New operator corrections also return:
 | --- | --- |
 | `inventory-in-use` | Remove pickup references first. Every offer, paused or archived, keeps its stock reference, so archive the offer instead of its backing item. |
 | `inventory-archived` | Unarchive the item before configuring pickup, restocking or making a new allocation. |
-| `group-in-use` | The group is a leaderboard's exclusion group, or a quest that is not archived rewards it with `groupMembership`. The response's `leaderboards` array names those boards; bind them to another exclusion group (`leaderboards bind-exclusion-group`). Its `quests` array names those quests; remove the reward or archive the quest. Then archive the group. |
+| `group-in-use` | The group is a leaderboard's exclusion group, or a quest that is not archived rewards it with `groupMembership`. The response's `leaderboards` array names those boards; bind them to another exclusion group (`leaderboards bind-exclusion-group`) in test, and promote to change live's binding. Its `quests` array names those quests; remove the reward or archive the quest. Then archive the group. |
 | `enrollment-not-found` | Read the member's quest enrollments before withdrawing. |
 | `enrollment-changed` | Refresh enrollment; a withdrawal or new consent changed its revision. |
 | `webhook-changed` | Refresh endpoint state before deleting. |

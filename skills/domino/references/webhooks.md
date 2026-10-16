@@ -4,18 +4,23 @@ Use `management.webhooks` from `@domino-sdk/relay/server`, or `domino webhooks`,
 
 ## Event envelope
 
-Each JSON payload has `version: 1`, a UUID `id`, open string `type`, epoch-millisecond `createdAt`, `organization`, `project`, `environment`, and a `data` object. Unknown type strings must be accepted or ignored, because Relay can add event types. A subscription names exact types from `activityTypes`, exported by `@domino-sdk/relay/server`; creating or updating an endpoint with any other type is refused with `unknown-activity-type`, and the message lists the valid types. An update may keep a type the endpoint subscribed to before Relay checked types.
+Each JSON payload has `version: 1`, a UUID `id`, open string `type`, epoch-millisecond `createdAt`, `organization`, `project`, `environment`, and a `data` object. Unknown type strings must be accepted or ignored, because Relay can add event types. `ActivityType` (`KnownActivityType | (string & {})`, from `@domino-sdk/relay/server`) names the known types for typing your own handlers; `WebhookEvent.type` is a `string`. A subscription names exact types from `activityTypes`, exported by `@domino-sdk/relay/server`; creating or updating an endpoint with any other type is refused with `unknown-activity-type`, and the message lists the valid types. An update may keep a type the endpoint subscribed to before Relay checked types.
 
 | Constant | Type | Data fields |
 | --- | --- | --- |
 | `completionCreated` | `completion.created` | `attempt`, `member`, `quest`, `completion`, `key`, `source` |
 | `pointsAwarded` | `points.awarded` | `entry`, `member`, `balance`, `amount`, `completion`, `quest`, `source` |
 | `reviewPending` | `review.pending` | `attempt`, `member`, `quest`, `completion` |
+| `attemptRejected` | `attempt.rejected` | `attempt`, `member`, `quest`, `completion` |
 | `rewardDeliveryFailed` | `reward.delivery.failed` | `delivery`, `member`, `quest`, `completion` |
+| `rewardDeliveryUpdated` | `reward.delivery.updated` | `delivery`, `member`, `quest`, `completion`, `status`; Discord role deliveries also `ownership` |
+| `entitlementGranted` | `entitlement.granted` | `entitlement`, `member`, `tier`, `status` |
 | `entitlementCollected` | `entitlement.collected` | `entitlement`, `member`, `tier` |
 | `referralQualified` | `referral.qualified` | `program`, `member`, `inviter`, `completion` |
 
 `completion` can be null where no completion caused the change; `quest` can be null on a points award.
+
+`attempt.rejected` fires when an attempt is rejected. `entitlement.granted` fires when a member earns a new or upgraded tier. `reward.delivery.updated` fires when a reward delivery is queued (status `pending`) and when its state changes, including Discord reconciliation.
 
 `completion.created` fires for a quest attempt's completion and for each winner's completion when a leaderboard settlement is approved. `source` is `{ kind, id }` and names what paid the completion: `kind` is `quest` or `leaderboard` (`CompletionSourceKind` from `@domino-sdk/relay/server`), an open string that can gain values, and `id` is the quest or board ID. `key` is the occurrence the completion consumed: the quest's completion key, or the settlement ID for a prize. A leaderboard prize has `attempt: null`, and its `quest` carries the board ID, the same as `source.id`. Branch on `source.kind` rather than treating every `quest` as a quest ID. Events created before `source` and `key` existed omit them, so a replayed older delivery has neither. `points.awarded` covers positive point journal entries of kind `award`. Its `source` is `{ kind, id }` and names what paid the award: `quest` or `leaderboard` with the quest or board ID, `engagement` with the engagement rule's key, or `manual` with `id: null` for an operator's point award; `kind` (`PayoutSourceKind` from `@domino-sdk/relay/server`) is an open string that can gain values, and events created before `source` existed omit it. Because `id` can be null, do not parse this `source` with `completionSourceSchema`, which requires an ID. Manual adjustments and [member import](imports.md) opening balances have kind `adjust` and do not emit it; imported completions do not emit `completion.created`. Referral qualification emits when qualification changes to active, including an operator qualification. Events contain identifiers and values, without raw submission evidence, provider errors, or credentials.
 
@@ -28,18 +33,20 @@ All paths are under `/management/v1`. Scope comes from the management credential
 | `GET /webhooks` | `webhooks.list()` | `webhooks list` |
 | `POST /webhooks` | `webhooks.create({ url, types, actionId? })` | `webhooks create <file> [--operation-id <uuid>]` |
 | `PUT /webhooks/:id` | `webhooks.update(id, { url?, types?, enabled? })` | `webhooks update <endpoint> <file>` |
-| `POST /webhooks/:id/disable` | `webhooks.disable(id)` | `webhooks disable <endpoint>` |
+| `POST /webhooks/:id/pause` | `webhooks.pause(id)` | `webhooks pause <endpoint>` |
+| `POST /webhooks/:id/resume` | `webhooks.resume(id)` | `webhooks resume <endpoint>` |
+| `POST /webhooks/:id/disable` | `webhooks.disable(id)`, deprecated alias of `pause` | `webhooks disable <endpoint>`, deprecated alias of `webhooks pause` |
 | `POST /webhooks/:id/rotate-secret` | `webhooks.rotateSecret(id, { actionId? })` | `webhooks rotate-secret <endpoint> [--operation-id <uuid>]` |
 | `GET /webhooks/:id/deliveries` | `webhooks.deliveries(id, { cursor?, limit? })` | `webhooks deliveries <endpoint> [--cursor <cursor>]` |
-| `POST /webhooks/:id/deliveries/:delivery/replay` | `webhooks.replay(id, delivery)` | `webhooks replay <endpoint> <delivery>` |
+| `POST /webhooks/:id/deliveries/:delivery/replay` | `webhooks.replay(id, delivery)` | `webhooks replay <endpoint> <delivery> [--action-id <uuid>]` |
 
-Reads require `read`; writes require `publish`. API keys are limited by their project, environment, and granted permissions. CLI sessions cannot write in live. Webhook configuration is an operational control, so a live API key with `publish` can write. Reviewer and staff roles cannot change endpoints or replay deliveries. Endpoint creation, changes, rotation, replay, and automatic disablement enter the management audit trail. Audit data omits signing secrets and endpoint URLs.
+Reads require `read`; writes require `publish`. API keys are limited by their project, environment, and granted permissions. CLI sessions cannot change webhooks in live. Webhook configuration is an operational control, so a live API key with `publish` can write. Reviewer and staff roles cannot change endpoints or replay deliveries. Endpoint creation, changes, rotation, replay, and automatic disablement enter the management audit trail. Audit data omits signing secrets and endpoint URLs.
 
 Create and rotate responses contain `{ endpoint, secret, previousValidUntil }`. Rotation normally retains the previous secret for 24 hours. If the previous secret cannot be decrypted after an infrastructure encryption-key replacement, rotation recovers immediately with `previousValidUntil: null`; install the new secret before replaying failed deliveries. A usable overlap blocks another rotation until it ends.
 
 Create and rotate take an `actionId`; the SDK generates one when you omit it. A retry with the same `actionId` and input returns the first answer, including the same secret, instead of creating a second endpoint or being refused by the overlap. Once the endpoint's secret is rotated again, the earlier action's retry is refused with `secret-superseded`. The CLI saves both commands as operations: after a lost answer (exit 3), run `domino operations resume <id>`. The saved operation keeps the returned secret in the local journal (`RELAY_CONFIG_DIR/operations`, owner-only) only until the CLI prints it once; afterwards the saved result has `secretRedacted: true` and `domino operations show <id>` says to rotate it. `operations list` never includes it.
 
-Other endpoint responses expose URL, subscribed `types`, `enabled`, `disabledReason`, `consecutiveFailures`, and timestamps. Delivery pages contain `items` and `nextCursor`, newest first by creation time and ID; pass `nextCursor` back as `cursor` for the next page. `before` and `next` are the deprecated names of the same cursor, removed in 2.0.0. Items expose the event, delivery ID, endpoint ID, status, attempts, response status, last error, creation and delivery times, and `replayOf`.
+Other endpoint responses expose URL, subscribed `types`, `enabled`, `disabledReason`, `consecutiveFailures`, and timestamps. Delivery pages contain `items` and `nextCursor`, newest first by creation time and ID; pass `nextCursor` back as `cursor` for the next page. `before` and `next` are the deprecated names of the same cursor, removed in 2.0.0; `contract.json` marks `webhooks deliveries --before` with `deprecated`, and its `--json` result carries `nextCursor` too. Items expose the event, delivery ID, endpoint ID, status, attempts, response status, last error, creation and delivery times, and `replayOf`.
 
 ## Signature protocol
 
@@ -66,7 +73,7 @@ Other endpoint responses expose URL, subscribed `types`, `enabled`, `disabledRea
 | Disabled | No new event deliveries; queued deliveries become skipped when processed; in-flight requests can finish |
 | Rotation | Both secrets sign for 24 hours; another rotation waits for the overlap to end |
 | Delivery page | Default 50, maximum 100; `before` is a delivery ID from the same endpoint |
-| Replay | Finished deliveries only, enabled endpoint required; retains event ID, creates a new delivery ID |
+| Replay | Finished deliveries only, enabled endpoint required; retains event ID, creates a new delivery ID. With `--action-id`, a retry with the same ID answers the delivery the first replay created; the same ID for another delivery is refused with 409 `action-id-reused` |
 
 Private, loopback, link-local, metadata, multicast, reserved, and IPv4-mapped IPv6 addresses are rejected. DNS failures retry. A newly unsafe DNS answer permanently fails that delivery and disables the endpoint. HTTPS certificate and hostname verification stay enabled.
 
