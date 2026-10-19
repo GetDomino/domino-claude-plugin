@@ -1,7 +1,7 @@
 {
   "name": "domino",
   "displayName": "Domino",
-  "version": "1.62.0",
+  "version": "1.63.0",
   "description": "Build community campaigns with Domino: set up a project, author quests, points, leaderboards and referrals, and test them with the Domino CLI.",
   "author": {
     "name": "Domino",

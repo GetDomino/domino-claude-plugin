@@ -78,6 +78,8 @@ A refusal that follows a write which may have taken effect answers 502 instead o
 | `route-not-found`                    | The API does not serve this path or method.                                                     |
 | `PROJECT_MOVED`                      | The project moved to another organization the signed-in operator can access. `moved` names it. |
 | `member-not-found`                   | No member holds the account used for a management lookup.                                      |
+| `member-erase-blocked` | 409: `members.erase` waits while the member has an attempt waiting for evaluation or review, or a reward handover in progress; `state` says which. Decide the attempt or finish the handover, then erase. Nothing changed. |
+| `member-erased` | 409: the member was erased (`members.erase`), so nothing new can be recorded for them: points, badges, groups, campaigns, consent and profile changes are refused. |
 | `account-ambiguous`                  | Several members hold the lookup account. `members` lists their IDs.                            |
 | `identity-ambiguous`                 | An identity command named an X or Discord account by subject, and the member holds it through several issuers, none selected. Name it with the `{ kind: "oauth", provider, issuer, subject }` selector from `members.identityStates.list`. |
 | `TRACKER_SCOPE_DENIED`               | The API key cannot ingest into this tracker.                                                    |
@@ -108,7 +110,7 @@ The state changed since the caller read it. Nothing was written. Read the curren
 | `offer-changed`                                                               | An offer changed since the operator read its revision.                              |
 | `catch-up-changed`                                                            | Automatic-quest catch-up changed since its preview.                                 |
 | `trigger-changed`, `filter-changed`                                            | A tracker trigger or its record filter no longer matches the recorded outcome.      |
-| `invalid-cursor`                                                               | The page cursor no longer reads: start again from the first page.                  |
+| `invalid-cursor`                                                               | The page cursor is malformed, expired, or from other filters: start again from the first page. |
 | `stale-session`                                                               | The participant session changed since the app read it.                              |
 | `quest-updated`, `stale-quiz`                                                  | The quest or quiz changed since the participant loaded it.                          |
 
@@ -116,15 +118,18 @@ The [participant API](participant-api.md#client-conventions) describes the parti
 
 ## Sign in or use another credential
 
+[Access](https://console.domino.run/docs/concepts/access) describes each kind of credential, the roles behind it and what it may do in live.
+
 | Code                            | Meaning                                                                                         |
 | ------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `not-signed-in`                 | The call needs a signed-in member.                                                              |
+| `unauthenticated`               | A participant backend (`createParticipantBackend`) found no app session. The SDK ends the member's session on it, as on `not-signed-in` (`RelayErrorCode.Unauthenticated`). |
 | `session-expired`               | The Console or CLI session expired. Sign in again, or run `domino login`.                      |
 | `sign-in-expired`               | A CLI sign-in request expired or was already approved. Run `domino login` again.               |
 | `invalid-credential`            | The API key, service key, automation key, hosted app key or identity integration key is expired, revoked or not valid here. |
 | `credential-not-allowed`        | This action needs another kind of credential, such as a Console session or `domino login`. An automation key administers nothing.     |
 | `permission-required`           | The credential lacks the permission or administrator role the action needs, such as an automation key creating a project without its create-projects permission, or a viewer (dashboards only) reading members. |
-| `console-approval-required`     | Approving, rejecting or rolling back a live deployment, and approving or rejecting a promotion, needs a Console session, and so does creating or scoping a live personal API key, whichever environment the CLI selects. In live, a `domino login` session writes only revocations of personal API keys, app secrets, custom domains, catalog previews, review submissions and promotions, a promotion's rollback, image uploads, and creating, checking, canceling, stopping and reverting member imports; an automation key or MCP connector writes nothing in live. |
+| `console-approval-required`     | The action needs a person signed in to Console: approving or rejecting a promotion, publishing, rejecting or rolling back a live deployment, creating or scoping a live personal API key (whichever environment the CLI selects), or a live write that a `domino login` session, an MCP connector or an automation key may not make. See [what each credential may do in live](https://console.domino.run/docs/concepts/access#what-each-credential-may-do-in-live). |
 | `scope-mismatch`                | The credential belongs to another organization, project or environment, or the automation key does not reach this project.                        |
 | `organization-required`         | Choose an organization first.                                                                   |
 | `test-environment-required`     | The action works only in the test environment, such as development, staging, test members and preparing a promotion. |
@@ -249,6 +254,7 @@ A dashboard read gives a failing panel its own `error` instead of failing: `grou
 | `already-exists`                                                                     | The name or key is taken.                                                                    |
 | `limit-reached`                                                                      | A count limit, such as app secrets, webhook endpoints, stores or linked wallets. Creating a project, or transferring a Free project in, answers 403 with `limit: "free-projects"`, `count` and `maximum` when the organization already holds its 10 Free projects: delete one or put one on a plan. See [Free projects](https://console.domino.run/docs/use/projects#free-projects). |
 | `image-archived`, `tracker-archived`, `quest-type-archived`, `point-ledger-archived`, `group-archived` | Unarchive the resource first.                                                                |
+| `tiered-reward-archived`                                                             | 422: a deploy or promotion would make a quest, offer or leaderboard prize newly grant an archived tiered reward, named in `reward`. Unarchive it (`domino tiered-rewards unarchive KEY --reason "…"`) or remove it from that code. |
 | `tracker-paused`                                                                     | Resume the tracker's collection first.                                                       |
 | `x-budget-exhausted`                                                                 | 409: the tracker paused because the project's monthly X budget (in test, the organization's) is spent. It resumes on its own next month, or sooner on a plan that allows more. |
 | `tracker-owned-by-code`                                                              | 409: the tracker is defined in code; change it in code and deploy, or create a tracker with another key. |
@@ -275,16 +281,19 @@ A dashboard read gives a failing panel its own `error` instead of failing: `grou
 | `oauth-not-supported`                                                                | 409: the plugin connects with entered secrets, so it has no OAuth to authorize. Use `connections.connect`. |
 | `plugin-not-configured`                                                              | 409: this deployment lacks the plugin vendor's OAuth app, so nothing can connect it. `plugins.list()` shows `oauth.configured: false`; Domino has to set it up, there is nothing to fix on your side. |
 | `plugin-managed`                                                                     | 409: the plugin connects through its own flow, not with settings, such as Telegram's chats through Domino's bot. Connect it under Integrations in Console, or through its own API (`management.telegram.connect()`). |
+| `dry-run-not-supported`                                                              | 409: the plugin has no dry run: connect it with its secrets or through its OAuth. |
+| `dry-run-test-only`                                                                  | 409: a dry run is for the test environment. Connect the vendor's account in live. |
+| `not-a-destination`                                                                  | 409: the plugin syncs nothing to a vendor, so it has no activity, resync or dry-run log. |
 | `subscription-exists`                                                                | 409: the project already has a subscription that holds its plan. Change its plan (`billing.changePlan`) or cancel it (`billing.cancel`) instead. |
 | `no-subscription`                                                                    | 409: the project has no subscription that holds its plan, so there is nothing to change, cancel or resume. Subscribe it first (`billing.checkout`). |
 | `subscription-canceling`                                                             | 409: the subscription is set to end when its period does. Resume it (`billing.resume`) before changing its plan. |
 | `no-customer`                                                                        | 409: the organization has no Stripe customer yet, so there is no customer portal (`billing.portal`, `billing.organizationPortal`). Subscribe a project first (`billing.checkout`). |
-| `test-member-reset-blocked`                                                          | Relay cannot safely reset the test member; `state` names the blocking record.                 |
+| `test-member-reset-blocked`                                                          | Relay cannot safely reset or purge the test member; `state` names the blocking record. A purge names the member in `member`, and for `referrals affect another member` the unlisted member in `outside`: add it to the list. |
 | `test-member-clock-limit`                                                            | The test member's clock cannot run more than 90 days ahead of real time.                     |
 | `test-member-clock-past`                                                             | `advance` with `to` names an instant at or before the test member's clock; it only moves forward. |
 | `attempt-not-rejected`                                                               | 409: only a rejected attempt can be accepted anyway; this one is accepted, progressed, failed, needs review or is still being checked. Retry a failed attempt (`attempts.retry`) and review one that needs review (`attempts.review`). |
-| `attempt-superseded`                                                                 | 409: `attempts.acceptAnyway` accepts only the member's latest attempt on the quest; the error names the newer attempt, and `attempts.get` answers it as `supersededBy`. |
-| `quest-archived`                                                                     | 409: `attempts.acceptAnyway` refuses an attempt on an archived quest. Unarchive the quest first.                                     |
+| `attempt-superseded`                                                                 | 409: `attempts.acceptAnyway`, and `testMembers.acceptAnyway` with `rules: "live"`, accept only the member's latest attempt on the quest; the error names the newer attempt, and `attempts.get` answers it as `supersededBy`. |
+| `quest-archived`                                                                     | 409: `attempts.acceptAnyway`, and `testMembers.acceptAnyway` with `rules: "live"`, refuse an attempt on an archived quest. Unarchive the quest first.                                     |
 | `attempt-not-decided`                                                                | 409: `attempts.redactEvidence` deletes evidence only once the attempt is accepted, progressed, rejected or failed; this one, or another attempt that submitted the same photo, still waits for evaluation or review. Decide it first. |
 | `evidence-redacted`                                                                  | 409: staff deleted the attempt's evidence (`attempts.redactEvidence`), so retrying it (`attempts.retry`, or the member retrying their failed attempt) and `attempts.capture` have nothing left to evaluate or replay. `attempts.acceptAnyway` still accepts a rejected one. |
 | `import-status`                                                                      | The [member import](imports.md) is not in a state that allows this, such as applying one that is not `checked`. |

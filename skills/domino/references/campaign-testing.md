@@ -1,6 +1,6 @@
 # Test a campaign with test members
 
-Simulate the campaign the way its participants will live it: several members, several days, through the real ledger in the test environment. Then fix what breaks and run the scenario again. A unit test of one evaluator (`runQuest`) proves one decision; a test-member scenario proves the campaign: enrollment, prerequisites, availability, streaks, budgets, review and rewards working together over time.
+Simulate the campaign the way its participants will live it: several members, several days, through the real ledger in the test environment. Then fix what breaks and run the scenario again. A unit test of one evaluator (`runQuest`, in [test your quests](https://console.domino.run/docs/build/testing)) proves one decision; a test-member scenario proves the campaign: enrollment, prerequisites, availability, streaks, budgets, review and rewards working together over time.
 
 Work in the test environment with a `domino login` CLI session, a personal API key, or an organization automation key. The `domino test-members` commands always address test. Each step needs its own permission. An organization admin holds all of them; a project role holds only its own:
 
@@ -76,7 +76,7 @@ domino api POST /attempts/ATTEMPT/review review.json --json
 
 Take `generation` from `.attempt.generation` of `domino attempts get ATTEMPT --json`. Use a new `actionId` for each new decision, and the same one only to retry it.
 
-To get a persona past a quest whose check you can't satisfy in test (a follow on X, an on-chain balance, a quiz) and on to the quests behind it, pass it: `domino test-members pass MEMBER QUEST [--completion-key KEY] --json` admits an attempt as `act` would, then accepts it as you without running the check. Prerequisites, availability, enrollment, a waiting attempt and the retry cooldown still refuse it, and the completion policy, budgets and rewards still apply: a counter quest counts one step, a streak quest today's action, and a keyed quest without `--completion-key` gets a fresh key. Automatic quests can't be passed; send the record that starts a tracker-triggered quest, and if its check rejects the attempt, `domino test-members accept-anyway MEMBER ATTEMPT --json` accepts that rejected attempt as you. Both answer the decided attempt. Use them only for checks you aren't testing: a passed quest proves nothing about its own check.
+To get a persona past a quest whose check you can't satisfy in test (a follow on X, an on-chain balance, a quiz) and on to the quests behind it, pass it: `domino test-members pass MEMBER QUEST [--completion-key KEY] --json` admits an attempt as `act` would, then accepts it as you without running the check. Prerequisites, availability, enrollment, a waiting attempt and the retry cooldown still refuse it, and the completion policy, budgets and rewards still apply: a counter quest counts one step, a streak quest today's action, and a keyed quest without `--completion-key` gets a fresh key. Automatic quests can't be passed; send the record that starts a tracker-triggered quest, and if its check rejects the attempt, `domino test-members accept-anyway MEMBER ATTEMPT --json` accepts that rejected attempt as you. Both answer the decided attempt. Use them only for checks you aren't testing: a passed quest proves nothing about its own check. `accept-anyway` also accepts what live refuses (an archived quest, a superseded attempt, a completion cooldown) and needs no reason; to rehearse an operator reversing a rejection in live, add `--live-rules --reason TEXT`, which refuses those with live's codes.
 
 Submission returns a queued attempt; evaluation continues in the background. Read the outcome before acting again.
 
@@ -103,6 +103,8 @@ Done when every attempt and skipped outcome has an expected/actual verdict, and 
 Fix the quest or the campaign definition locally. Before publishing, replay the attempts the bug touched: `domino quests replay ATTEMPT_ID --environment test --json` runs your local quest code against a captured evaluation, so you see which past outcomes the fix changes before it reaches anyone. Replay a few attempts that went right, too. Then publish to test, create fresh members, and run the failing persona again. A member cannot go back in time, so start each re-run from a new member.
 
 `domino test-members reset MEMBER` deletes a member. It refuses with 409 `test-member-reset-blocked`, naming the blocking `state`, while an attempt is queued, evaluating or deferred, and when the member touched shared or external state: a shared project budget, inventory, redemptions or a reward handover, reward or webhook deliveries, referral relationships, a leaderboard settlement or an engagement account. A successful reset also frees the member's wallet addresses and unlinks the accounts it connected while a staging site acted as it. A refused reset changes nothing; wait for evaluations to finish, or keep the member and create another.
+
+`domino test-members purge MEMBER... --reason TEXT` (`management.testMembers.purge({ actionId, members, reason })`) cleans up after a run that redeemed offers or used referrals: it deletes up to 500 test members in one transaction, with their redemptions, reservations, reward handovers and referrals, and gives the stock unit each redemption, reservation and pickup handover took back to its stock item. List both sides of every referral; a referral with a member outside the list refuses the whole call with 409 `test-member-reset-blocked` (`referrals affect another member`, `member` the listed member, `outside` the other). Every other reason reset refuses a member still refuses the purge, naming the member in `member`. A refused purge changes nothing; purged IDs never come back.
 
 Done when the failing persona passes on a fresh member, the replays change only the outcomes you meant to change, and the other personas still pass.
 
@@ -159,7 +161,20 @@ A run for an inviter, two invitees and a quest-qualified program:
 3. Read the result: `domino referral-relationships list` for qualifications, `domino referral-relationships history INVITER` for the inviter's referral rewards, and `domino points get` for each balance. Check milestones at their exact counts.
 4. Try the refusals: the inviter's own code, a second inviter, and an invitee who already completed a quest other than the qualifying quest.
 
-Once a test member has accepted an inviter or been accepted as one, `reset` refuses it with 409 `test-member-reset-blocked` (`referrals affect another member`), so create fresh members for each referral run. Check the referral UI itself on the staging site, signed in as a test member.
+Once a test member has accepted an inviter or been accepted as one, `reset` refuses it with 409 `test-member-reset-blocked`, so create fresh members for each referral run, and afterwards remove the inviter and its invitees together with `domino test-members purge INVITER INVITEE... --reason TEXT`. Check the referral UI itself on the staging site, signed in as a test member.
+
+### Offers and stock
+
+A test member redeems an offer with `domino test-members redeem MEMBER OFFER`, as a signed-in member redeeming it would: the offer's price comes off the member's balance, stock goes down, and the per-member limit counts it. The same refusals apply: `offer-paused`, `collection-paused`, `prerequisites-incomplete`, `offer-limit-reached`, `insufficient-points` and `offer-out-of-stock`, and a refusal changes nothing. It prints the redemption. Hand its `entitlement` over as staff would: `management.handover.begin` at the entitlement's revision, then `management.handover.confirm` (or `domino api POST /entitlements/ENTITLEMENT/begin` and `/confirm`).
+
+A run for a stocked offer:
+
+1. Create more members than the offer has stock, and award each the price, one of them a point short.
+2. Redeem as each. Expect `insufficient-points` for the short member, and `offer-out-of-stock` once stock runs out. Redeem again as one member to hit the per-member limit.
+3. Read the result: `domino redemptions history`, each balance with `domino points get`, and the offer's `available` with `domino offers list`.
+4. Hand one entitlement over and confirm it.
+
+Once a test member has redeemed, `reset` refuses it with 409 `test-member-reset-blocked` (`redemption history exists`), so create fresh members for each run, and afterwards remove them with `domino test-members purge MEMBER... --reason TEXT`, which gives their redeemed stock back. Check the offer screens themselves on the staging site, signed in as a test member.
 
 ### Balance-gated quests
 
@@ -174,9 +189,9 @@ Once a test member has accepted an inviter or been accepted as one, `reset` refu
 Quests that read `x.profile()`, `follows()`, `reposted()` or a member's Discord roles need an account X and Discord know. Link a real, public account to the test member without OAuth:
 
 ```sh
-domino test-members link-account MEMBER --kind x --username solflare --json
+domino test-members link-account MEMBER --kind x --username XDevelopers --json
 domino test-members link-account MEMBER --kind discord --subject 80351110224678912 --json
-domino test-members unlink-account MEMBER --kind x --subject 1263464405834899456 --json
+domino test-members unlink-account MEMBER --kind x --subject 2244994945 --json
 ```
 
 - Quest code reads the linked account like one a member linked: `x.connection()` returns its ID, and the profile, follower, repost and role reads ask X and Discord about it. Pick accounts whose public state puts each persona where you want it: following the target, not following it, holding the role, missing it.

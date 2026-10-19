@@ -1,6 +1,6 @@
 # Measure a project and build dashboards
 
-Use this reference to answer how a project is doing, to pick the metrics that measure what it is for, and to build, check and explain dashboards. Command flags and result shapes are in [project analytics](automation.md#project-analytics), [metric catalog](automation.md#metric-catalog) and [dashboards](automation.md#dashboards); the `defineDashboard` fields and deploy refusals are in [authoring dashboards](authoring.md#dashboards).
+[Analytics](https://console.domino.run/docs/concepts/analytics) explains what each metric counts, and [Dashboards](https://console.domino.run/docs/build/dashboards) walks through defining one. Use this reference to answer how a project is doing, to pick the metrics that measure what it is for, and to build, check and explain dashboards. Command flags and result shapes are in [project analytics](automation.md#project-analytics), [metric catalog](automation.md#metric-catalog) and [dashboards](automation.md#dashboards); the `defineDashboard` fields and deploy refusals are in [authoring dashboards](authoring.md#dashboards).
 
 ## Answer "how is it going"
 
