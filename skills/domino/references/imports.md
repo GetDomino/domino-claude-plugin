@@ -60,6 +60,7 @@ A new import for a member already imported credits their opening balance again: 
 | `account-linked-elsewhere` | Another member holds the identity or an account. Never merged. |
 | `duplicate-account` | An earlier row of the import names the same identity or account. |
 | `identity-unlinked` | The identity or wallet was unlinked from its member. |
+| `member-banned` | The row's identity names a member who is banned (`members.ban`): an import adds nothing to a banned member. |
 | `x-account-selected` | Two X accounts in the row, or the member already has another X account. |
 | `telegram-account-selected` | Two Telegram accounts in the row, or the member already has another Telegram account. |
 | `discord-account-selected` | Two Discord accounts in the row, or the member already has another Discord account. |

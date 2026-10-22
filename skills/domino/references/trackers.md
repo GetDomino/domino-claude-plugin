@@ -492,6 +492,7 @@ Each observation a quest's mode and filter select is recorded as exactly one out
 | `unlinked-account` | No member has linked this wallet; No member has linked this Discord account | Ask the member to verify the account. Linking it decides the skip again. |
 | `ambiguous-account` | Linked account is ambiguous | More than one member selected the account. Once one of them removes it, the skip is decided again. |
 | `not-joined` | Member has not joined this project | The member signs in to your app once. Joining decides the skip again. |
+| `member-banned` | Member is banned | Nothing; an operator banned the member (`members.ban`). An unban counts only what the member does afterwards, so the skip is never decided again. |
 | `already-completed` | Member already completed this quest | Nothing; a `once()` quest completes once, and a streak pays one milestone. |
 | `not-enrolled` | Member has not enrolled in this quest, or in the quest's campaign | The member enrolls in what `enrollment` names (`quest` or `campaign`). Enrolling decides the skip again. |
 | `before-enrollment` | Occurred before the member enrolled | Nothing; the quest counts from enrollment. |

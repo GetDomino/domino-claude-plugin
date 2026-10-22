@@ -106,6 +106,8 @@ Fix the quest or the campaign definition locally. Before publishing, replay the 
 
 `domino test-members purge MEMBER... --reason TEXT` (`management.testMembers.purge({ actionId, members, reason })`) cleans up after a run that redeemed offers or used referrals: it deletes up to 500 test members in one transaction, with their redemptions, reservations, reward handovers and referrals, and gives the stock unit each redemption, reservation and pickup handover took back to its stock item. List both sides of every referral; a referral with a member outside the list refuses the whole call with 409 `test-member-reset-blocked` (`referrals affect another member`, `member` the listed member, `outside` the other). Every other reason reset refuses a member still refuses the purge, naming the member in `member`. A refused purge changes nothing; purged IDs never come back.
 
+Reset, purge and erase never touch the app's own KV or SQL stores. When the app keeps member data there (ticket mappings, progress rows, uploaded photos) and a fresh member collides with the old rows, clear them in test instead of shipping a cleanup endpoint: `domino storage clear sql DB --table tickets --dry-run --json` counts the rows, and the same command with `--yes` empties the tables, keeping the schema and `d1_migrations`; `--all-tables --keep settings` empties every table but the named ones; `domino storage clear kv PHOTOS --prefix photo: --yes` deletes the keys under a prefix, looping over batches of 10,000. Live refuses with `test-environment-required`. See [hosted storage](hosted.md#app-storage).
+
 Done when the failing persona passes on a fresh member, the replays change only the outcomes you meant to change, and the other personas still pass.
 
 ## What to watch for
@@ -265,7 +267,7 @@ Done when the driver can stop and restart mid-scenario without doubling a step, 
    - `POST /__domino/toolbar/members/<id>/advance` with `{ "days" }`, `GET …/<id>/quests`, `POST …/<id>/passes` with `{ "quest" }`, and `GET …/<id>/history?since=<ms>` match `domino test-members advance`, `pass` and `history`, which you can use instead.
 4. **Walk the flow** in the browser as the member, then read the outcome with `domino test-members history`.
 
-The toolbar's collapsed bar sits in the bottom-right corner, over the app. When a tap in the browser fails with "`<domino-staging-toolbar>` intercepts pointer events", the app's bottom-pinned UI, such as a tab bar, should make room for it: while the toolbar is mounted, `<html>` carries `data-domino-staging-toolbar` and the `--domino-staging-toolbar-inset-bottom` custom property, the distance from the viewport's bottom edge to the top of the collapsed bar in px. Opening the toolbar leaves it unchanged. Live has no toolbar, so give the property a `0px` fallback:
+The toolbar's collapsed bar sits in the bottom-right corner, over the app. When a tap in the browser fails with "`<domino-staging-toolbar>` intercepts pointer events", the app's bottom-pinned UI, such as a tab bar, should make room for it: while the toolbar is mounted, `<html>` carries `data-domino-staging-toolbar` and the `--domino-staging-toolbar-inset-bottom` custom property, the distance from the viewport's bottom edge to the top of the collapsed bar in px. Opening the toolbar leaves it unchanged. **Hide toolbar** in the toolbar's `⋯` menu hides it for the browser tab (kept in `sessionStorage` across reloads, until the tab closes), leaving only a small "Show the Domino staging toolbar" button in the corner; while hidden, the property is `0px` and the attribute is gone, so screenshots and layout checks see the live layout. Live has no toolbar, so give the property a `0px` fallback:
 
 ```css
 nav.tab-bar {
@@ -285,6 +287,8 @@ Who the link names decides whether step 3 works. Each toolbar request checks aga
 | Hosted app key, service key, Claude or ChatGPT | Nobody | Views staging; the toolbar answers 403 `operator-required`. |
 
 Toolbar actions are audited as the operator: your user, or `automation:<id>`. A revoked or expired key answers 401 `unauthenticated`; mint a new link with an active credential. A human reviewer without Console access signs in with the staging password instead (Console **Settings → Staging access**); a password session views staging but never gets the toolbar.
+
+**Before staging, on a `domino dev` preview.** The same steps work on a running preview, so you can check the flow before integrating into `main`. In step 1, add the preview URL `domino dev` printed: `{ "path": "/", "preview": "https://<slug>--<hash>.domino.page" }`. The link and its `__Host-domino-staging` cookie open that preview host only, never staging or another preview, and only while the preview runs; restart `domino dev` and mint a new link if it went offline. The toolbar, its endpoints on the preview origin, and the credential table above work as on staging, and the app's dev server never receives the cookie. A URL that is not a running preview of the project answers 404 `preview-not-found`. Without the link's session, the preview's toolbar endpoints answer 403 `operator-required`.
 
 ## Report
 
