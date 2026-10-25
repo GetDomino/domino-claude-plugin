@@ -77,7 +77,7 @@ A refusal that follows a write which may have taken effect answers 502 instead o
 
 | Code                                 | Meaning                                                                                         |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| `route-not-found`                    | The API does not serve this path or method.                                                     |
+| `route-not-found`                    | The API does not serve this path or method. A caller no management credential identified counts it toward the refusal limit, as a refused credential: after 60 refusals within 10 minutes from one address, its unknown paths and its management, MCP and Git requests answer 429 `rate-limited` until the 10 minutes end ([troubleshooting](troubleshooting.md)). |
 | `PROJECT_MOVED`                      | The project moved to another organization the signed-in operator can access. `moved` names it. |
 | `member-not-found`                   | No member holds the account used for a management lookup.                                      |
 | `member-erase-blocked` | 409: `members.erase` waits while the member has an attempt waiting for evaluation or review, or a reward handover in progress; `state` says which. Decide the attempt or finish the handover, then erase. Nothing changed. |
