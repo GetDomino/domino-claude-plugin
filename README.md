@@ -4,10 +4,10 @@
 
 ## Setup
 
-The skill drives the `domino` CLI from the npm package [`@domino-sdk/relay-cli`](https://www.npmjs.com/package/@domino-sdk/relay-cli), which needs Node.js 24. This plugin version comes from CLI 1.66.1. Install that CLI and the matching SDK in your app with its package manager, for example:
+The skill drives the `domino` CLI from the npm package [`@domino-sdk/relay-cli`](https://www.npmjs.com/package/@domino-sdk/relay-cli), which needs Node.js 24. This plugin version comes from CLI 1.67.0. Install that CLI and the matching SDK in your app with its package manager, for example:
 
 ```sh
-npm install @domino-sdk/relay@1.66.1 @domino-sdk/relay-cli@1.66.1
+npm install @domino-sdk/relay@1.67.0 @domino-sdk/relay-cli@1.67.0
 ```
 
 Then run `npx domino login`, which signs you in to your Domino account in the browser. The skill in this plugin matches that CLI release, so upgrade the CLI and this plugin together.
