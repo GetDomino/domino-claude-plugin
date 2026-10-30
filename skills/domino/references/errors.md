@@ -85,7 +85,7 @@ A refusal that follows a write which may have taken effect answers 502 instead o
 | `member-not-banned` | 409: `members.unban` named a member with no ban in force. Nothing changed. |
 | `member-ban-restoring` | 409: `members.ban` waits while the member's last unban is still restoring their completions (`ban.unban.restore.status: "running"`); ban again once it finishes. `ban` names the ban. |
 | `member-erased` | 409: the member was erased (`members.erase`), so nothing new can be recorded for them: points, badges, groups, campaigns, consent and profile changes are refused. |
-| `account-ambiguous`                  | Several members hold the lookup account. `members` lists their IDs.                            |
+| `account-ambiguous`                  | Several members hold the lookup account, or the signers of a submitted Solana transaction. `members` lists their IDs. |
 | `identity-ambiguous`                 | An identity command named an X or Discord account by subject, and the member holds it through several issuers, none selected. Name it with the `{ kind: "oauth", provider, issuer, subject }` selector from `members.identityStates.list`. |
 | `TRACKER_SCOPE_DENIED`               | The API key cannot ingest into this tracker.                                                    |
 | `INVALID_IDENTITY_EXCHANGE`          | The identity exchange body is malformed.                                                       |
@@ -153,8 +153,13 @@ Participant sign-in adds its own:
 | `already-signed-in`        | Sign out before signing in as someone else.                                               |
 | `invalid-code`             | The email code is wrong. The member can type it again.                                    |
 | `code-expired`             | The email code expired, was used, was replaced by a newer code or had too many attempts. Request another, and enter the latest code. |
-| `challenge-expired`        | The wallet challenge expired, was used or changed. Start wallet sign-in again. For Telegram Mini App sign-in, the launch data is over five minutes old or already signed in once: reopen the Mini App. |
+| `challenge-expired`        | The wallet challenge expired, was used or changed. Start wallet sign-in again. Linking by transaction: the member has no open challenge for the address, or it is over 7 days old; request a new one. For Telegram Mini App sign-in, the launch data is over five minutes old or already signed in once: reopen the Mini App. |
 | `invalid-signature`        | The wallet signature does not match the challenge, or Telegram did not sign the Mini App launch data for the project's bot. |
+| `transaction-not-final`    | Linking by transaction: the transaction is not finalized yet. Send the same signature again in a few seconds. |
+| `transaction-not-found`    | Linking by transaction: Solana mainnet has no transaction with this signature. |
+| `transaction-failed`       | Linking by transaction: the transaction failed, so it proves nothing. Execute the memo again. |
+| `proof-mismatch`           | Linking by transaction: no Memo v2 instruction carries one of the member's open challenges for the address with the address as signer. |
+| `challenge-used`           | Linking by transaction: another transaction already used the challenge. Request a new one. |
 | `sign-in-method-disabled`  | The account or wallet is linked but is not a sign-in method, or wallet or Telegram Mini App sign-in is off for the project. |
 | `account-linked-elsewhere` | The account belongs to another member. Accounts are never merged.                         |
 | `account-not-linked`       | Sign in with the provider, or link the account, before verifying.                         |
@@ -176,6 +181,15 @@ An attempt that cannot verify Discord because the project has no ready connectio
 | `staff-confirmation-required`          | Staff confirm this quest; the member cannot submit it.                                         |
 | `invalid-submission`                   | The supplied text, URL, answer or evidence does not meet the quest's input rules.              |
 | `attempt-pending`                      | The member's previous attempt on this quest is not decided yet: one unfinished attempt each.  |
+| `transaction-not-final` | 409 with `Retry-After`: `management.attempts.submitSolanaTransaction` found no finalized transaction by that signature yet. A transaction finalizes about 13 seconds after it lands; send the same signature again. An unknown signature answers this too, so stop retrying after a deadline. Each read counts against the project environment's budget of 1,500 per 10 minutes (3,000 across Domino); past it the route answers 429 `rate-limited` before reading, and a failed read answers 502 `unavailable`. |
+| `transaction-failed` | 422: the submitted Solana transaction failed on chain. |
+| `transaction-not-found` | 404 from `management.solana.transactionFixture` (`domino quests fixtures`): the cluster has no transaction with a signature, as for one from the other cluster. The same call answers 409 `transaction-not-final` for one not finalized yet and 422 `transaction-failed` for a failed one; see [on-chain](onchain.md#solana-transactions). |
+| `transaction-not-for-quest` | 422: the submitted Solana transaction carries no Domino quest memo, more than one, or one naming another quest. |
+| `wallet-not-linked` | 404: no signer of the submitted Solana transaction is a wallet a member of the project and environment has linked. Domino never links a wallet from a transaction; the member links it in the app, then the app submits the signature again. |
+| `quest-not-transaction-completable` | 422: only a member-submitted `manual()` quest without input can be completed from a Solana transaction. |
+| `station-unknown` | 422: the quest has check-in `stations` and the transaction's memo `reference` names none of them, or names none at all. A member's own submission of such a quest, without a transaction, is refused with it too. |
+| `station-closed` | 409: the station the memo names was outside its `opensAt`/`closesAt` window at the transaction's block time. |
+| `station-revoked` | 409: an operator revoked the station the memo names, with `management.quests.stations.revoke()` or in Console. It applies when the transaction is submitted, whenever it was signed; `restore()` lifts it. |
 | `retry-cooldown`                       | The member's last attempt was rejected and the quest's retry cooldown runs until `retryAt`.   |
 | `completion-cooldown`                  | The member's last accepted completion is within the quest's completion cooldown, until `retryAt`. |
 | `submission-closed`                    | The quest submission was already submitted, discarded or expired; open a new one.             |
@@ -317,6 +331,8 @@ A dashboard read gives a failing panel its own `error` instead of failing: `grou
 | `key-used`                         | From `attempts.acceptAnyway`: the quest's completion keys are unique across members (`keyed(fn, { across: "members" })`), and another member's completion holds this attempt's key. Revoke that completion with `freeOccurrence: true` first. |
 | `completion-not-revoked`           | Restore refused: the completion isn't revoked.                                                  |
 | `occurrence-taken`                 | Restore refused: the revoke freed the occurrence and `completion` holds it now.                 |
+| `receipt-conflict`                 | Experimental. `completions.recordReceipt` refused: the completion already has a receipt with this `key` and different values. Receipts are write-once; record the new transaction under another key. |
+| `receipt-limit`                    | Experimental. `completions.recordReceipt` refused: the completion already holds 20 receipts.    |
 | `completion-grant-history-missing` | Relay cannot safely revoke an older completion until Domino restores its reward grant history. |
 | `entitlement-status`               | The reward entitlement changed state before a correction could apply.                           |
 | `operation-retired`                | The operation belongs to the retired pre-1.0 contract; read current state and create a new one. |
@@ -335,4 +351,9 @@ New operator corrections also return:
 | `settlement-decided` | The window was already approved or rejected; read its retained decision. |
 | `settlement-closing` | The settlement is still taking its closing measurement (its `closing` field is set); approve it once it freezes. |
 | `settlement-measured` | Every item was measured; there is nothing to measure again. Approve or reject the settlement. |
+| `settlement-not-approved` | Only an approved settlement can be paid on Solana; approve it first. |
+| `pool-not-token` | The settlement has no pool, or its pool is in points, which approval already paid. Only a token pool is paid on Solana. |
+| `decimals-mismatch` | The mint's decimals differ from the pool unit's. Pass the mint the pool is counted in (SOL has 9 decimals). |
+| `insufficient-balance` | The payer cannot cover the unpaid shares, fees, rent for new token accounts and its own rent-exempt minimum; the message says how much is short. Fund the payer's wallet or its associated token account and build again. |
+| `unsupported-mint` | The Token-2022 mint has a transfer fee, transfer hook or other extension a push payout cannot pay exactly through. Pay it another way. |
 | `account-changed` | Refresh the retained identity choices; disconnect a different current OAuth selection before relinking. |

@@ -12,11 +12,12 @@ Deliver the requested participant experience and evidence that its main action w
 Check the run mode once, at the start: read `agentMode` from `domino doctor --json`, which prints it even when doctor exits 1, or read `DOMINO_AGENT_MODE` from the environment before the CLI is installed. In `interactive` mode, ignore this section. `unattended` means whoever launched you set `DOMINO_AGENT_MODE=unattended` and nobody is present to answer; never set it yourself. In unattended mode, these rules replace every instruction below to ask, wait, or end the turn:
 
 - **The brief is the confirmed brief.** Skip brand and campaign intake, questions, and confirmation, and never end a turn to wait for an answer.
-- **Fill gaps, don't ask.** Where the brief leaves a consequential gap, such as rewards, timing, eligibility, or brand, choose the most conservative reasonable option. Record each choice in CAMPAIGN.md under "Assumed in an unattended run" and carry on.
+- **Fill gaps, don't ask.** Where the brief leaves a consequential gap, such as rewards, timing, or eligibility, choose the most conservative reasonable option. Record each choice in CAMPAIGN.md under "Assumed in an unattended run" and carry on.
+- **Choose a deliberate art direction for a new app.** Where the brief names no brand, pick an art direction that suits the brief and apply it fully, following [design](references/design.md#art-direction): an event booth reads differently from a DeFi points programme. The starter's default look is not an acceptable result. Record the direction, with one line of reasoning, under "Assumed in an unattended run". An existing app keeps its current design.
 - **No browser login.** Remote work uses `RELAY_MANAGEMENT_TOKEN`. On `AUTH_REQUIRED` or `UNATTENDED_LOGIN_UNAVAILABLE`, finish the local work and report the missing credential; don't run `domino login`.
 - **No live publication.** Stop at hosted staging; live needs human review in Console.
 - **Feedback stays local.** `domino feedback` saves each report to the `file` in its result instead of submitting it. Report as described below and name that file in the handoff.
-- **The handoff is a report.** End with what you built, the staging URL, the checks and participant actions you ran, and every assumption. Ask no questions.
+- **The handoff is a report.** End with what you built, the staging URL, the checks and participant actions you ran, the design self-review screenshots, and every assumption. Ask no questions.
 
 ## Report tooling issues
 
@@ -30,7 +31,7 @@ Read existing project instructions and saved decisions first. If the owner alrea
 
 ### Existing apps: confirm the campaign
 
-Preserve the app's current design, components, and UI conventions. Skip brand discovery, brand-name or website questions, visual samples, and brand approval unless the owner explicitly requests a redesign.
+Preserve the app's current design, components, and UI conventions. Skip brand discovery, brand-name or website questions, visual samples, and brand approval unless the owner explicitly requests a redesign; build a redesign to the [design reference](references/design.md). Domino parts you add, such as quest cards and progress, follow the app's own tokens and the reference's [existing-app rule](references/design.md#existing-apps).
 
 Ask only for missing campaign basics: goal, intended participants, desired actions, and reason to participate. If these are missing, ask a few short questions, end the turn, and wait for answers before setup or implementation. Use answers already supplied. Inspect the app to identify where the participant flow belongs, then propose the campaign and smallest integration that fits its existing UI. Resolve consequential rewards, timing, and eligibility gaps with the owner. Wait for explicit campaign confirmation before implementing, and save the confirmed brief and remaining open decisions in the app's established project document. Reuse prior confirmation when it covers the work. Continue with [existing apps](references/existing-app.md) for integration steps.
 
@@ -44,6 +45,8 @@ Before implementing a new app, establish the brand direction and campaign brief 
 4. **Confirm and save.** Present the proposed brand direction and campaign brief together for the owner to confirm or correct. End the turn and wait for their explicit response before implementation; silence and your own confidence are not confirmation. After intake, you may inspect and connect the project, research, write the draft brief, and prepare the visual sample. Keep app implementation and campaign configuration until after confirmation. Save the agreed direction, evidence of the owner's confirmation, sources, and remaining open decisions in CAMPAIGN.md, or the existing app's established brief document. Preserve the original request and link to the brief if it lives elsewhere.
 
 Discovery is complete when the owner has confirmed the brand direction and campaign intent, including the goal, participants, actions, and motivation. Optional details can remain open if they do not affect the first implementation; record what must wait for those decisions. On subsequent sessions, read the saved brief and continue without repeating onboarding.
+
+Build the confirmed direction into the app following the [design reference](references/design.md): brand tokens, a phone-first layout, every quest state, a completion moment, accessibility, and a screenshot self-review before staging.
 
 ## Establish the project
 
@@ -68,7 +71,7 @@ Choose the reference that matches the task:
 - Before starting or resuming work in a Domino-hosted repository, or sharing its staging preview, follow the [source and release workflow](references/hosted.md#source-and-release-workflow). Read [hosted projects](references/hosted.md) for checkout and app setup.
 - For integration into an existing codebase, read [existing apps](references/existing-app.md).
 - Before authoring a quest, read [authoring](references/authoring.md#find-a-snippet) and check the live snippet catalog for a suitable starting point. The same reference covers reusable types, collections, leaderboards, external points, and publication.
-- To declare a tracker (X, Discord, Telegram, YouTube Shorts, TikTok or wallet balances), trigger a quest from its records, pay engagement points, or check Telegram membership (`ctx.telegram`), read [trackers](references/trackers.md#declare-trackers).
+- To declare a tracker (X, Discord, Telegram, YouTube Shorts, TikTok, wallet balances, NFT holdings or Solana stake), trigger a quest from its records, pay engagement points, or check Telegram membership (`ctx.telegram`), read [trackers](references/trackers.md#declare-trackers).
 - When a quest checks what a member did (Discord membership, X, linked wallets and balances, NFTs, contract state, Cosmos delegations, submissions, AI text review, image checks, staff confirmation, or app-owned pass entry), read [verify member actions](references/verification.md) for the reader and its null, error and pinning rules.
 - When you shape how a quest decides and repeats (campaigns, windows and prerequisites, automatic or repeatable quests, reject codes, deferral and progress reports, cooldowns, evaluation time, streaks, progress counters, test members, or local quest tests), read [quest rules and evaluation](references/quest-rules.md).
 - To operate a project from a script or server (the management client and its errors, project identity and settings, archiving and restoring resources, recovering a quest lifecycle change, undoing an operator action, or scheduled hosted jobs), read [operate published resources](references/management.md).
@@ -92,7 +95,7 @@ If no CLI is installed, install `@domino-sdk/relay-cli` and `@domino-sdk/relay` 
 
 ## Verify the result
 
-Run the app's checks and exercise the requested participant action through the running app. Verify the resulting progress or completion state. Keep fixture-provider results distinct from real external verification.
+Run the app's checks and exercise the requested participant action through the running app. Before staging UI you built or restyled, run the [design self-review](references/design.md#self-review-before-staging) and keep its screenshots for the handoff. Verify the resulting progress or completion state. Keep fixture-provider results distinct from real external verification.
 
 Complete the [tooling feedback review](#report-tooling-issues) before the final handoff, including after a successful task.
 
