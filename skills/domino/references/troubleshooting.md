@@ -53,7 +53,7 @@ If a documented request is rejected, an expected method is missing, or SDK and s
 
 If a build or typecheck fails on an API that no longer exists after an upgrade, read the [upgrade guide](https://console.domino.run/docs/reference/upgrade-to-v1) for that change's old and new code and a search command for affected code.
 
-Doctor includes links to these instructions and the changelog. It does not query the latest package release or automatically change dependencies.
+Doctor includes links to these instructions and the changelog. Its `cli-version` check names the latest release the Domino API reported and the exact upgrade command for the project ([update notice](automation.md#update-notice)). It never changes dependencies.
 
 ## Verification failures
 

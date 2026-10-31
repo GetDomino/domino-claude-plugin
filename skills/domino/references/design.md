@@ -28,7 +28,8 @@ Set the brand as tokens in one stylesheet, such as `src/styles.css` in the start
 Members arrive from a QR code, an X link or a Discord message, so they are on a phone. Design at 390 px wide first, then widen.
 
 - One column at phone width, with no horizontal scroll at 320 px.
-- The first screen at 390 × 844 says what the campaign is and shows the main action without scrolling.
+- The first screen at 390 × 844 says what the campaign is and shows the main action without scrolling. When the app is built around one quest, that quest's input or button starts on the first screen; steps, rules and fine print go below it or inside its card.
+- Say each instruction once. When the quest card says what to do, the page above it doesn't repeat it as a paragraph or a list of steps.
 - At desktop width, content keeps a readable maximum width (about 1,100 px for the page, 70 characters for paragraphs) instead of stretching edge to edge.
 
 ## Every state designed
@@ -72,6 +73,7 @@ Before you stage, screenshot the running app and fix what looks unfinished. Use 
 1. Capture each page at 390 px and at a desktop width (1,280 to 1,440 px), in light and in dark (emulate `prefers-color-scheme`). If the app has only one theme by design, capture that one and say so.
 2. Reach every state in the [table](#every-state-designed) that the app can show, and capture each. Use `createFakeRelay` ([test the UI](participant-api.md#test-the-ui)) for loading, empty, error and the quest states, or test members on a running `domino dev` preview ([before staging](campaign-testing.md#check-participant-flows-on-staging)). Hide the staging toolbar first (**Hide toolbar** in its `⋯` menu) so the captures show the live layout.
 3. Check every capture against this reference: the art direction is visible, text is legible, nothing overflows or overlaps, spacing follows the scale, and no starter sample copy remains. Fix what fails and capture again.
-4. Keep the final captures and list their paths in the handoff.
+4. Measure the first screen; a full-page capture hides the fold. Signed in as a member who has done nothing yet, at 390 × 844, read the main action's `getBoundingClientRect().top`: it must be below 844. Read it again on the home page signed out, for the sign-in button. If either is lower, move the explanations below the action or shorten what sits above it, then measure again.
+5. Keep the final captures and list their paths in the handoff, with the two measurements.
 
 Done when every rule above holds in the final captures, the CSS or the markup. If you have no way to take screenshots, say so in the handoff and report the self-review as not done.
