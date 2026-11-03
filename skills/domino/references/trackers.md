@@ -506,7 +506,9 @@ On a Discord tracker, record data has fixed types, so `where` paths such as `cha
 
 Never put a secret, such as a code hidden at an event station, behind a text or URL quest ([text and URL submissions](verification.md#text-and-url-submissions)). Relay returns submitted `input` to the member who sent it ([reads that return submitted input](participant-api.md#reads-that-return-submitted-input)), and any signed-in member can submit through the hosted participant proxy (`handleHostedApp` forwards `POST /v1/me/attempts` and the submission routes), past any rate limit the app's own form applies. Relay has no option to hide `input` or refuse participant submissions for one quest.
 
-Check the secret in the app's server and report what it proved to a custom tracker instead:
+For codes at an event's stations, declare code stations instead (`stations: [{ key, label, proof: "code" }]` with `perStation()`): Relay keeps each environment's code, limits guesses and draws the printable QR codes, and the app's scan page checks the member in with `useStationCheckIn()` from `@domino-sdk/relay/react` or `checkInAtStation()` from `@domino-sdk/relay/browser`, or its server with `management.attempts.submitStationCode()` ([check in with a code](onchain.md#check-in-with-a-code), the [guide](https://console.domino.run/docs/build/station-codes), and the `station-codes` snippet). All experimental.
+
+For any other secret, one Relay doesn't keep, check it in the app's server and report what it proved to a custom tracker:
 
 1. Declare `customSource(namespace, { identities: ["member"], data })` with a `data` field naming what was proven (a station key, never the code), and a quest with `trigger: automatic({ tracker, on: "new-record" })`, keyed per proven thing (`keyed(({ tracker }) => "station:" + tracker.record.data.station)`).
 2. In a server route, `await signedInMember(request, env, { apiUrl })` from `@domino-sdk/relay/portal-proxy`; refuse a null member. Rate-limit guesses per member in the app (KV or your platform's limiter), then compare the code against an app secret.
