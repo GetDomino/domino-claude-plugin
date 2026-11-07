@@ -287,7 +287,7 @@ A dashboard read gives a failing panel its own `error` instead of failing: `grou
 | `gallery-not-contest`                                                                | 409: marking a winner in a wall gallery. Only a `contest` gallery has winners. |
 | `gallery-photo-hidden`                                                               | 409: marking a hidden gallery photo a winner. Unhide it first. |
 | `gallery-photo-winner`                                                               | 409: hiding a contest winner. Unmark it first with `galleries.unmarkWinner`. |
-| `gallery-requires-photo`                                                             | 422: publishing, deploying or promoting a quest that declares a photo `gallery` when its input is not a photo. Declare `gallery` only on a `manual({ input: evidence.photo() })` quest. |
+| `gallery-requires-photo`                                                             | 422: publishing, deploying or promoting a quest that declares a photo `gallery` when its input is not a photo. Declare `gallery` only on a `manual({ input: evidence.photo() })` quest. `domino build`, `deploy` and `check` report it first as `DEFINITION_INVALID`. |
 | `secret-superseded`                                                                  | The webhook secret this action ID issued was rotated since. Rotate the secret again to get a new one. |
 | `review-required`, `deployment-rejected`                                             | Review the draft, or submit the deployment for review, first; or the deployment was rejected. |
 | `already-approved`                                                                   | The leaderboard settlement was already approved.                                             |
