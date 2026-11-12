@@ -70,7 +70,7 @@ Other endpoint responses expose URL, subscribed `types`, `enabled`, `disabledRea
 | Payload | At most 64 KiB; immutable across retry and replay |
 | Retry | Up to 20 attempts, exponential backoff starting at 5 seconds, capped at 15 minutes |
 | Success | Any 2xx response |
-| Auto-disable | 20 consecutive failed HTTP attempts across the endpoint, or a URL that resolves to an unsafe address at delivery time |
+| Auto-disable | 20 consecutive failed HTTP attempts across the endpoint, or a URL that resolves to an unsafe address at delivery time. An attempt Relay could not sign (last error `Relay could not sign the delivery`) still uses up a retry but neither counts toward this nor resets the counter |
 | Disabled | No new event deliveries; queued deliveries become skipped when processed; in-flight requests can finish |
 | Rotation | Both secrets sign for 24 hours; another rotation waits for the overlap to end |
 | Delivery page | Default 50, maximum 100; `before` is a delivery ID from the same endpoint |

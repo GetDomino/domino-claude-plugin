@@ -56,7 +56,7 @@ Run `domino doctor --json` to inspect setup without running application code or 
 
 Run CLI commands with `--json` in scripts and agents. Branch on the exit status (0 success, 1 failure, 2 usage error, 3 uncertain, 130 cancelled) and the error's `code`, never on its message. Exit 3 means a change may have taken effect: resume it with the error's `operation.resume` instead of rerunning the command. The [automation contract](references/automation.md) lists every code and result schema. An API refusal also carries the API's own code in `apiCode`, and SDK errors carry it in `code`; [API error codes](references/errors.md) lists them.
 
-Use `domino login` for browser authorization when remote work is needed. As soon as the CLI prints the login details, send the user the code first, then the clickable sign-in link, in the same message. Always preserve this order, even if the CLI prints the link first. Use the exact code and URL from the current login attempt:
+Use `domino login` for browser authorization when remote work is needed. When the CLI already holds a working session for that organization, it reports that it is already signed in (`alreadySignedIn: true` with `--json`) and prints no code; go on without asking the user for anything. Otherwise, as soon as the CLI prints the login details, send the user the code first, then the clickable sign-in link, in the same message. Always preserve this order, even if the CLI prints the link first. Use the exact code and URL from the current login attempt:
 
 > Code: `<code from CLI>`
 >
